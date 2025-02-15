@@ -1,0 +1,69 @@
+[package]
+name = "webshot"
+version = "0.1.0"
+edition = "2021"
+authors = ["Alex Kholodniak <alexandrkholodniak@gmail.com>"]
+description = "A command-line tool for automated website screenshots and web scraping"
+license = "MIT"
+repository = "https://github.com/kholdrex/webshot"
+readme = "README.md"
+keywords = ["screenshot", "web-scraping", "browser-automation", "cli"]
+categories = ["command-line-utilities", "web-programming"]
+
+[[bin]]
+name = "webshot"
+path = "src/main.rs"
+
+[dependencies]
+# CLI framework
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+futures = "0.3"
+
+# Browser automation
+headless_chrome = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Serialization and config
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+
+# Image processing
+image = { version = "0.24", features = ["png", "jpeg"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# File system operations
+tempfile = "3.8"
+
+# HTTP client for validation
+reqwest = { version = "0.11", features = ["json"] }
+
+# URL parsing
+url = "2.4"
+
+# Path manipulation
+path-absolutize = "3.1"
+
+# Date and time
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+assert_cmd = "2.0"
+predicates = "3.0"
+tempfile = "3.8"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
