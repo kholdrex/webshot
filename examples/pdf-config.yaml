@@ -1,0 +1,24 @@
+# Configuration focused on PDF generation
+
+defaults:
+  timeout: 45
+  wait: 3
+
+screenshots:
+  - url: "https://example.com"
+    output: "example.pdf"
+    
+  - url: "https://github.com/microsoft/vscode"
+    output: "vscode-readme.pdf"
+    selector: "#readme"
+    
+  - url: "https://docs.rs/clap/latest/clap/"
+    output: "clap-docs.pdf"
+    javascript: |
+      // Remove navigation to focus on content
+      document.querySelector('nav')?.remove();
+      document.querySelector('.sidebar')?.remove();
+      
+  - url: "https://blog.rust-lang.org"
+    output: "rust-blog.pdf"
+    wait_for: "article"

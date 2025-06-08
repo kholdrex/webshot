@@ -1,0 +1,127 @@
+# Example configuration file for webshot batch processing
+# This demonstrates various features and options available
+
+# Global defaults applied to all screenshots
+defaults:
+  width: 1280
+  height: 800
+  timeout: 30
+  wait: 2
+  retina: false
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+  output_dir: "screenshots"
+  headers:
+    "Accept-Language": "en-US,en;q=0.9"
+  cookies:
+    - name: "session"
+      value: "example_session_id"
+      domain: ".example.com"
+
+# List of screenshots to take
+screenshots:
+  # Basic screenshot
+  - url: "https://example.com"
+    output: "example-homepage.png"
+
+  # Custom viewport size
+  - url: "https://github.com"
+    output: "github-desktop.png"
+    width: 1920
+    height: 1080
+
+  # Element-specific screenshot
+  - url: "https://github.com"
+    output: "github-header.png"
+    selector: ".Header"
+
+  # Mobile viewport
+  - url: "https://example.com"
+    output: "example-mobile.png"
+    width: 375
+    height: 812
+
+  # Screenshot with JavaScript execution
+  - url: "https://example.com"
+    output: "example-interactive.png"
+    javascript: |
+      // Click a button or interact with the page
+      document.querySelector('button')?.click();
+      // Change some styling
+      document.body.style.backgroundColor = '#f0f0f0';
+
+  # Wait for dynamic content
+  - url: "https://httpbin.org/delay/2"
+    output: "httpbin-delayed.png"
+    wait_for: "pre"
+    timeout: 10
+
+  # High-quality JPEG
+  - url: "https://picsum.photos/1200/800"
+    output: "random-image.jpg"
+    quality: 95
+
+  # Retina/high-DPI screenshot
+  - url: "https://example.com"
+    output: "example-retina.png"
+    retina: true
+
+  # PDF generation
+  - url: "https://example.com"
+    output: "example-page.pdf"
+
+  # Custom headers and authentication
+  - url: "https://httpbin.org/basic-auth/user/pass"
+    output: "authenticated.png"
+    auth:
+      username: "user"
+      password: "pass"
+    headers:
+      "X-Custom-Header": "webshot-example"
+
+  # Screenshot with custom wait time and user agent
+  - url: "https://httpbin.org/user-agent"
+    output: "user-agent-test.png"
+    wait: 3
+    user_agent: "WebshotBot/1.0"
+
+  # Multiple elements with different selectors
+  - url: "https://github.com/explore"
+    output: "github-explore-trending.png"
+    selector: ".Box:first-child"
+    wait_for: ".Box"
+
+  # Long page screenshot (full height)
+  - url: "https://github.com/features"
+    output: "github-features-full.png"
+    height: 2000
+
+  # Screenshot with complex JavaScript
+  - url: "https://example.com"
+    output: "example-modified.png"
+    javascript: |
+      // Remove unwanted elements
+      document.querySelectorAll('.advertisement, .popup').forEach(el => el.remove());
+      
+      // Modify content
+      const title = document.querySelector('h1');
+      if (title) {
+        title.textContent = 'Modified by WebShot';
+        title.style.color = 'red';
+      }
+      
+      // Scroll to specific position
+      window.scrollTo(0, 500);
+      
+      // Wait for any animations to complete
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+  # Screenshot with cookies for personalized content
+  - url: "https://example.com"
+    output: "example-personalized.png"
+    cookies:
+      - name: "user_preference"
+        value: "dark_theme"
+        path: "/"
+      - name: "language"
+        value: "en"
+        path: "/"

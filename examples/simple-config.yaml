@@ -1,0 +1,14 @@
+# Simple configuration for basic screenshots
+
+screenshots:
+  - url: "https://example.com"
+    output: "example.png"
+    
+  - url: "https://github.com"
+    output: "github.png"
+    width: 1920
+    height: 1080
+    
+  - url: "https://news.ycombinator.com"
+    output: "hackernews.png"
+    selector: ".itemlist"
