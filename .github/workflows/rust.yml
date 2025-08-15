@@ -3,6 +3,7 @@ name: Rust CI
 on:
   push:
     branches: [ master, main ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ master, main ]
 
@@ -50,3 +51,44 @@ jobs:
         name: webshot-binary
         path: target/release/webshot
         retention-days: 7
+
+  release:
+    name: Create Release
+    needs: test
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+        
+    - name: Cache dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+          
+    - name: Build release binary
+      run: cargo build --release --verbose
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: target/release/webshot
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
