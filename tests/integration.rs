@@ -262,14 +262,17 @@ async fn test_timeout_handling() {
     let output_path = temp_dir.path().join("timeout.png");
 
     let mut cmd = Command::cargo_bin("webshot").unwrap();
-    cmd.arg("https://httpbin.org/delay/10")
+    // Test timeout by waiting for an element that doesn't exist
+    cmd.arg("https://httpbin.org/html")
         .arg("-o")
         .arg(&output_path)
+        .arg("--wait-for")
+        .arg(".non-existent-element-that-will-never-appear")
         .arg("-t")
-        .arg("3"); // 3 second timeout for 10 second delay
+        .arg("2"); // 2 second timeout
 
-    // This should timeout and fail
-    cmd.timeout(std::time::Duration::from_secs(15))
+    // This should timeout and fail when waiting for non-existent element
+    cmd.timeout(std::time::Duration::from_secs(8))
         .assert()
         .failure();
 }
