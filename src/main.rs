@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use webshot::{Browser, Config, Result, ScreenshotOptions};
+use webshot::{Browser, Config, Result, ScreenshotOptions, ComparisonOptions, ImageComparator};
 
 #[derive(Parser)]
 #[command(
@@ -179,6 +179,38 @@ enum Commands {
         #[arg(short, long, default_value = "30")]
         timeout: u64,
     },
+    /// Compare two images for differences
+    #[command(alias = "diff")]
+    Compare {
+        /// First image to compare
+        image1: PathBuf,
+        /// Second image to compare
+        image2: PathBuf,
+        /// Output file for comparison results (JSON format)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Comparison algorithm
+        #[arg(short, long, default_value = "pixel-diff")]
+        algorithm: String,
+        /// Similarity threshold (0.0-1.0, higher means more strict)
+        #[arg(short, long, default_value = "0.1")]
+        threshold: f64,
+        /// Generate difference image highlighting changes
+        #[arg(long)]
+        diff_image: bool,
+        /// Path for difference image (required if --diff-image is used)
+        #[arg(long)]
+        diff_path: Option<PathBuf>,
+        /// Ignore anti-aliasing differences
+        #[arg(long)]
+        ignore_antialiasing: bool,
+        /// Color for highlighting differences (RGB format: 255,0,0)
+        #[arg(long, default_value = "255,0,0")]
+        diff_color: String,
+        /// Output format for results (json, text)
+        #[arg(long, default_value = "text")]
+        format: String,
+    },
 }
 
 #[tokio::main]
@@ -246,6 +278,23 @@ async fn main() -> Result<()> {
             timeout,
         }) => {
             extract_text(&url, selector, output, javascript, wait_for, timeout, chrome_path, chrome_flags, no_javascript, user_agent).await
+        }
+        Some(Commands::Compare {
+            image1,
+            image2,
+            output,
+            algorithm,
+            threshold,
+            diff_image,
+            diff_path,
+            ignore_antialiasing,
+            diff_color,
+            format,
+        }) => {
+            compare_images(
+                &image1, &image2, output, &algorithm, threshold, diff_image, diff_path,
+                ignore_antialiasing, &diff_color, &format,
+            ).await
         }
         None => {
             // Default behavior: screenshot with URL as positional argument
@@ -473,4 +522,149 @@ async fn extract_text(
     }
 
     Ok(())
+}
+
+/// Compare two images and output results
+async fn compare_images(
+    image1_path: &std::path::Path,
+    image2_path: &std::path::Path,
+    output: Option<PathBuf>,
+    algorithm: &str,
+    threshold: f64,
+    diff_image: bool,
+    diff_path: Option<PathBuf>,
+    ignore_antialiasing: bool,
+    diff_color: &str,
+    output_format: &str,
+) -> Result<()> {
+    use webshot::comparison::{ComparisonAlgorithm};
+
+    // Parse algorithm
+    let algorithm = match algorithm.to_lowercase().as_str() {
+        "pixel-diff" | "pixel" => ComparisonAlgorithm::PixelDiff,
+        "ssim" => ComparisonAlgorithm::SSIM,
+        "mse" => ComparisonAlgorithm::MSE,
+        "psnr" => ComparisonAlgorithm::PSNR,
+        _ => return Err(webshot::WebshotError::config(format!(
+            "Unknown algorithm: {}. Supported: pixel-diff, ssim, mse, psnr", algorithm
+        ))),
+    };
+
+    // Parse diff color
+    let diff_color = parse_rgb_color(diff_color)?;
+
+    // Validate inputs
+    if diff_image && diff_path.is_none() {
+        return Err(webshot::WebshotError::config(
+            "Diff path must be specified when --diff-image is used".to_string(),
+        ));
+    }
+
+    // Build comparison options
+    let mut options = ComparisonOptions::new()
+        .algorithm(algorithm)
+        .threshold(threshold)
+        .diff_color(diff_color.0, diff_color.1, diff_color.2);
+
+    if ignore_antialiasing {
+        options = options.ignore_antialiasing();
+    }
+
+    if diff_image {
+        if let Some(path) = diff_path {
+            options = options.generate_diff_image(path);
+        }
+    }
+
+    options.validate()?;
+
+    info!("Comparing images: {} vs {}", image1_path.display(), image2_path.display());
+    
+    // Perform comparison
+    let result = ImageComparator::compare_files(image1_path, image2_path, &options)?;
+
+    // Output results
+    match output_format.to_lowercase().as_str() {
+        "json" => {
+            let json = serde_json::to_string_pretty(&result)
+                .map_err(|e| webshot::WebshotError::config(format!("JSON serialization failed: {}", e)))?;
+            
+            if let Some(output_path) = output {
+                std::fs::write(output_path, json)?;
+                info!("Comparison results saved to JSON file");
+            } else {
+                println!("{}", json);
+            }
+        }
+        "text" => {
+            let text_output = format_comparison_result(&result);
+            
+            if let Some(output_path) = output {
+                std::fs::write(output_path, text_output)?;
+                info!("Comparison results saved to text file");
+            } else {
+                println!("{}", text_output);
+            }
+        }
+        _ => return Err(webshot::WebshotError::config(format!(
+            "Unknown output format: {}. Supported: json, text", output_format
+        ))),
+    }
+
+    // Exit with appropriate code
+    if result.similar {
+        info!("Images are similar (similarity: {:.2}%)", result.similarity * 100.0);
+        std::process::exit(0);
+    } else {
+        info!("Images are different (similarity: {:.2}%)", result.similarity * 100.0);
+        std::process::exit(1);
+    }
+}
+
+/// Parse RGB color string (format: "255,0,0")
+fn parse_rgb_color(color_str: &str) -> Result<(u8, u8, u8)> {
+    let parts: Vec<&str> = color_str.split(',').collect();
+    if parts.len() != 3 {
+        return Err(webshot::WebshotError::config(format!(
+            "Invalid color format: {}. Expected format: R,G,B (e.g., 255,0,0)", color_str
+        )));
+    }
+
+    let r = parts[0].trim().parse::<u8>()
+        .map_err(|_| webshot::WebshotError::config(format!("Invalid red value: {}", parts[0])))?;
+    let g = parts[1].trim().parse::<u8>()
+        .map_err(|_| webshot::WebshotError::config(format!("Invalid green value: {}", parts[1])))?;
+    let b = parts[2].trim().parse::<u8>()
+        .map_err(|_| webshot::WebshotError::config(format!("Invalid blue value: {}", parts[2])))?;
+
+    Ok((r, g, b))
+}
+
+/// Format comparison result as human-readable text
+fn format_comparison_result(result: &webshot::ComparisonResult) -> String {
+    let mut output = String::new();
+    
+    output.push_str(&format!("Image Comparison Results\n"));
+    output.push_str(&format!("========================\n\n"));
+    
+    output.push_str(&format!("Algorithm: {:?}\n", result.algorithm));
+    output.push_str(&format!("Threshold: {:.2}\n", result.threshold));
+    output.push_str(&format!("Similarity: {:.4} ({:.2}%)\n", result.similarity, result.similarity * 100.0));
+    output.push_str(&format!("Similar: {}\n", if result.similar { "YES" } else { "NO" }));
+    
+    if let Some(diff_pixels) = result.different_pixels {
+        output.push_str(&format!("Different pixels: {}/{} ({:.2}%)\n", 
+            diff_pixels, 
+            result.total_pixels,
+            (diff_pixels as f64 / result.total_pixels as f64) * 100.0
+        ));
+    }
+    
+    output.push_str(&format!("Total pixels: {}\n", result.total_pixels));
+    
+    if let Some(diff_path) = &result.diff_image_path {
+        output.push_str(&format!("Difference image: {}\n", diff_path.display()));
+    }
+    
+    output
 }

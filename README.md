@@ -12,6 +12,10 @@ A fast command-line tool for taking website screenshots, built in Rust.
 - Custom viewports and mobile emulation
 - Wait for elements or timeouts
 - Extract text content from pages
+- Multiple comparison algorithms (pixel-diff, SSIM, MSE, PSNR)
+- Generate difference images highlighting changes
+- Visual regression testing support
+- Configurable similarity thresholds
 - Works on Windows, macOS, and Linux
 
 ## Installation
@@ -87,6 +91,25 @@ webshot multi config.yaml -o output/ -p 4
 Extract text content:
 ```bash
 webshot text https://example.com -s "article" -o content.txt
+```
+
+#### `compare`
+Compare two images for differences:
+```bash
+# Basic comparison
+webshot compare image1.png image2.png
+
+# Use different algorithm with threshold
+webshot compare baseline.png current.png -a ssim -t 0.05
+
+# Generate difference image
+webshot compare old.png new.png --diff-image --diff-path diff.png
+
+# Output results as JSON
+webshot compare img1.png img2.png --format json -o results.json
+
+# Ignore anti-aliasing differences
+webshot compare baseline.png current.png --ignore-antialiasing
 ```
 
 ## Configuration Files
