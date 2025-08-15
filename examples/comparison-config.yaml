@@ -1,0 +1,42 @@
+# Example configuration for screenshot comparison and visual regression testing
+screenshots:
+  # Screenshot with comparison enabled
+  - url: "https://example.com"
+    output: "example-current.png"
+    width: 1280
+    height: 800
+    comparison:
+      baseline_path: "baselines/example-baseline.png"
+      algorithm: "pixel-diff"  # pixel-diff, ssim, mse, psnr
+      threshold: 0.05  # 5% difference threshold
+      generate_diff: true
+      diff_output_path: "diffs/example-diff.png"
+      ignore_antialiasing: true
+      diff_color: "255,0,0"  # Red highlighting for differences
+
+  # Multiple screenshots for A/B testing
+  - url: "https://example.com/page1"
+    output: "page1.png"
+    comparison:
+      baseline_path: "baselines/page1-baseline.png"
+      algorithm: "ssim"
+      threshold: 0.1
+
+  - url: "https://example.com/page2"
+    output: "page2.png"
+    selector: ".main-content"
+    comparison:
+      baseline_path: "baselines/page2-baseline.png"
+      algorithm: "mse"
+      threshold: 0.15
+      generate_diff: true
+      diff_output_path: "diffs/page2-diff.png"
+
+# Global defaults applied to all screenshots
+defaults:
+  width: 1920
+  height: 1080
+  timeout: 30
+  output_dir: "screenshots"
+  retina: true
+  wait: 2

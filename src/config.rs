@@ -54,6 +54,8 @@ pub struct ScreenshotConfig {
     pub cookies: Vec<CookieConfig>,
     /// Authentication credentials
     pub auth: Option<AuthConfig>,
+    /// Comparison configuration for visual regression testing
+    pub comparison: Option<ComparisonConfig>,
 }
 
 /// Cookie configuration
@@ -65,6 +67,30 @@ pub struct CookieConfig {
     pub path: Option<String>,
     pub secure: Option<bool>,
     pub http_only: Option<bool>,
+}
+
+/// Comparison configuration for visual regression testing
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ComparisonConfig {
+    /// Base image path for comparison
+    pub baseline_path: Option<String>,
+    /// Comparison algorithm to use
+    #[serde(default = "default_algorithm")]
+    pub algorithm: String,
+    /// Threshold for considering images similar (0.0-1.0)
+    #[serde(default = "default_threshold")]
+    pub threshold: f64,
+    /// Generate difference image
+    #[serde(default)]
+    pub generate_diff: bool,
+    /// Path for difference image output
+    pub diff_output_path: Option<String>,
+    /// Ignore anti-aliasing differences
+    #[serde(default)]
+    pub ignore_antialiasing: bool,
+    /// Color for highlighting differences (RGB format: "255,0,0")
+    #[serde(default = "default_diff_color")]
+    pub diff_color: String,
 }
 
 /// Authentication configuration
@@ -253,6 +279,18 @@ fn default_timeout() -> u64 {
     30
 }
 
+fn default_algorithm() -> String {
+    "pixel-diff".to_string()
+}
+
+fn default_threshold() -> f64 {
+    0.1
+}
+
+fn default_diff_color() -> String {
+    "255,0,0".to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,6 +316,7 @@ mod tests {
                 headers: std::collections::HashMap::new(),
                 cookies: Vec::new(),
                 auth: None,
+                comparison: None,
             }],
             defaults: DefaultConfig::default(),
         };
@@ -309,6 +348,7 @@ mod tests {
                 headers: std::collections::HashMap::new(),
                 cookies: Vec::new(),
                 auth: None,
+                comparison: None,
             }],
             defaults: DefaultConfig::default(),
         };
