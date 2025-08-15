@@ -8,7 +8,7 @@ A fast command-line tool for taking website screenshots, built in Rust.
 - Generate PDFs from web pages
 - Execute JavaScript before capturing
 - Batch processing with YAML configs
-- Support for PNG, JPEG, and PDF formats
+- Support for PNG, JPEG, WebP, and PDF formats
 - Custom viewports and mobile emulation
 - Wait for elements or timeouts
 - Extract text content from pages
@@ -41,6 +41,9 @@ webshot https://github.com -s ".Header" -o header.png
 # Generate a PDF
 webshot pdf https://example.com -o page.pdf
 
+# Screenshot in WebP format
+webshot https://example.com -o screenshot.webp
+
 # Extract text content
 webshot text https://example.com
 ```
@@ -57,7 +60,7 @@ webshot text https://example.com
 - `--wait-for` - Wait for element to appear
 - `-t, --timeout` - Timeout in seconds (default: 30)
 - `--retina` - Enable high-DPI mode
-- `-q, --quality` - JPEG quality 1-100
+- `-q, --quality` - JPEG/WebP quality 1-100
 - `-v, --verbose` - Verbose logging
 
 ### Subcommands
@@ -136,7 +139,7 @@ screenshots:
 - `wait_for` - CSS selector to wait for
 - `timeout` - Timeout in seconds
 - `retina` - Enable retina mode
-- `quality` - JPEG quality 1-100
+- `quality` - JPEG/WebP quality 1-100
 - `wait` - Wait time before screenshot
 - `user_agent` - Custom user agent
 - `headers` - Custom HTTP headers

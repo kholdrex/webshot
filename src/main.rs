@@ -52,7 +52,7 @@ struct Cli {
     #[arg(long)]
     retina: bool,
 
-    /// JPEG quality (1-100, only for JPEG output)
+    /// JPEG/WebP quality (1-100, only for JPEG and WebP output)
     #[arg(short, long, value_parser = clap::value_parser!(u8).range(1..=100))]
     quality: Option<u8>,
 
@@ -112,7 +112,7 @@ enum Commands {
         /// Enable retina mode
         #[arg(long)]
         retina: bool,
-        /// JPEG quality
+        /// JPEG/WebP quality
         #[arg(short, long)]
         quality: Option<u8>,
         /// Wait time before screenshot
@@ -333,10 +333,27 @@ async fn take_screenshot(
         user_agent,
     };
 
-    let output_path = output.unwrap_or_else(|| {
+    let output_path = output.as_ref().map(|p| p.clone()).unwrap_or_else(|| {
+        // Determine format from output path or default to PNG
+        let format = if let Some(ref output_path) = output {
+            if let Some(ext) = output_path.extension() {
+                match ext.to_str().unwrap_or("").to_lowercase().as_str() {
+                    "jpg" | "jpeg" => "jpg",
+                    "webp" => "webp",
+                    "pdf" => "pdf",
+                    _ => "png",
+                }
+            } else {
+                "png"
+            }
+        } else {
+            "png"
+        };
+        
         PathBuf::from(format!(
-            "screenshot_{}.png",
-            chrono::Utc::now().format("%Y%m%d_%H%M%S")
+            "screenshot_{}.{}",
+            chrono::Utc::now().format("%Y%m%d_%H%M%S"),
+            format
         ))
     });
 

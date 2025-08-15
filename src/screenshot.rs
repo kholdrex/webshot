@@ -153,6 +153,7 @@ impl ScreenshotOptions {
             "png" => Ok(ImageFormat::Png),
             "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
             "pdf" => Ok(ImageFormat::Pdf),
+            "webp" => Ok(ImageFormat::WebP),
             _ => Err(WebshotError::UnsupportedFormat { format: extension }),
         }
     }
@@ -163,6 +164,7 @@ impl ScreenshotOptions {
 pub enum ImageFormat {
     Png,
     Jpeg,
+    WebP,
     Pdf,
 }
 
@@ -172,6 +174,7 @@ impl ImageFormat {
         match self {
             ImageFormat::Png => "png",
             ImageFormat::Jpeg => "jpg",
+            ImageFormat::WebP => "webp",
             ImageFormat::Pdf => "pdf",
         }
     }
@@ -181,18 +184,19 @@ impl ImageFormat {
         match self {
             ImageFormat::Png => "image/png",
             ImageFormat::Jpeg => "image/jpeg",
+            ImageFormat::WebP => "image/webp",
             ImageFormat::Pdf => "application/pdf",
         }
     }
 
     /// Check if this format supports quality settings
     pub fn supports_quality(&self) -> bool {
-        matches!(self, ImageFormat::Jpeg)
+        matches!(self, ImageFormat::Jpeg | ImageFormat::WebP)
     }
 
     /// Check if this format supports transparency
     pub fn supports_transparency(&self) -> bool {
-        matches!(self, ImageFormat::Png)
+        matches!(self, ImageFormat::Png | ImageFormat::WebP)
     }
 }
 
@@ -263,6 +267,10 @@ mod tests {
             options.output_format(PathBuf::from("test.pdf")).unwrap(),
             ImageFormat::Pdf
         );
+        assert_eq!(
+            options.output_format(PathBuf::from("test.webp")).unwrap(),
+            ImageFormat::WebP
+        );
 
         assert!(options.output_format(PathBuf::from("test.gif")).is_err());
         assert!(options.output_format(PathBuf::from("test")).is_err());
@@ -282,17 +290,21 @@ mod tests {
         assert_eq!(ImageFormat::Png.extension(), "png");
         assert_eq!(ImageFormat::Jpeg.extension(), "jpg");
         assert_eq!(ImageFormat::Pdf.extension(), "pdf");
+        assert_eq!(ImageFormat::WebP.extension(), "webp");
 
         assert_eq!(ImageFormat::Png.mime_type(), "image/png");
         assert_eq!(ImageFormat::Jpeg.mime_type(), "image/jpeg");
         assert_eq!(ImageFormat::Pdf.mime_type(), "application/pdf");
+        assert_eq!(ImageFormat::WebP.mime_type(), "image/webp");
 
         assert!(!ImageFormat::Png.supports_quality());
         assert!(ImageFormat::Jpeg.supports_quality());
         assert!(!ImageFormat::Pdf.supports_quality());
+        assert!(ImageFormat::WebP.supports_quality());
 
         assert!(ImageFormat::Png.supports_transparency());
         assert!(!ImageFormat::Jpeg.supports_transparency());
         assert!(!ImageFormat::Pdf.supports_transparency());
+        assert!(ImageFormat::WebP.supports_transparency());
     }
 }

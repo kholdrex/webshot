@@ -53,6 +53,7 @@ impl OutputHandler {
         match extension.as_str() {
             "png" => Ok(ImageFormat::Png),
             "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
+            "webp" => Ok(ImageFormat::WebP),
             "pdf" => Ok(ImageFormat::Pdf),
             _ => Err(WebshotError::UnsupportedFormat { format: extension }),
         }
@@ -72,6 +73,7 @@ impl OutputHandler {
         let img = match source_format {
             ImageFormat::Png => image::load_from_memory_with_format(data, image::ImageFormat::Png)?,
             ImageFormat::Jpeg => image::load_from_memory_with_format(data, image::ImageFormat::Jpeg)?,
+            ImageFormat::WebP => image::load_from_memory_with_format(data, image::ImageFormat::WebP)?,
             ImageFormat::Pdf => {
                 return Err(WebshotError::config(
                     "Cannot convert from PDF format".to_string(),
@@ -89,6 +91,10 @@ impl OutputHandler {
             ImageFormat::Jpeg => {
                 let quality = quality.unwrap_or(90);
                 let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
+                img.write_with_encoder(encoder)?;
+            }
+            ImageFormat::WebP => {
+                let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut output);
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::Pdf => {
@@ -114,6 +120,11 @@ impl OutputHandler {
             }
             ImageFormat::Jpeg => {
                 // For JPEG, we could implement mozjpeg optimization here
+                // For now, just validate the file is readable
+                let _img = image::open(path)?;
+            }
+            ImageFormat::WebP => {
+                // For WebP, we could implement WebP optimization here
                 // For now, just validate the file is readable
                 let _img = image::open(path)?;
             }
@@ -279,6 +290,10 @@ mod tests {
         assert_eq!(
             OutputHandler::validate_output_path("test.pdf").unwrap(),
             ImageFormat::Pdf
+        );
+        assert_eq!(
+            OutputHandler::validate_output_path("test.webp").unwrap(),
+            ImageFormat::WebP
         );
 
         assert!(OutputHandler::validate_output_path("test.gif").is_err());

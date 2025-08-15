@@ -129,10 +129,10 @@ impl Browser {
         match format {
             ImageFormat::Pdf => {
                 return Err(WebshotError::screenshot(
-                    "PDF generation not supported in screenshot method, use pdf() instead",
+                    "PDF generation not supported in screenshot method, use pdf() method instead",
                 ));
             }
-            ImageFormat::Png | ImageFormat::Jpeg => {
+            ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP => {
                 self.take_image_screenshot(&tab, &output_path, options, format)
                     .await?;
             }
@@ -409,6 +409,14 @@ impl Browser {
                 let quality = options.quality.unwrap_or(90);
                 
                 let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
+                img.write_with_encoder(encoder)?;
+            }
+            ImageFormat::WebP => {
+                // Convert PNG to WebP
+                let img = image::load_from_memory(&screenshot_data)?;
+                let mut output = std::fs::File::create(&output_path)?;
+                
+                let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut output);
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::Pdf => {
