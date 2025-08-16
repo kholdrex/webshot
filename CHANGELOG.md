@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2025-08-16
+
+### Added
+- Advanced image comparison functionality with multiple algorithms
+  - Pixel-by-pixel difference comparison
+  - Structural Similarity Index (SSIM) for perceptual similarity
+  - Mean Squared Error (MSE) and Peak Signal-to-Noise Ratio (PSNR) metrics
+  - Configurable similarity thresholds and anti-aliasing tolerance
+  - Difference image generation highlighting visual changes
+  - Support for JSON and text output formats
+- Full WebP image format support
+  - Lossless WebP encoding for high-quality screenshots
+  - WebP quality control (1-100) for lossy compression
+  - Automatic format detection from file extensions
+- New `compare` subcommand for image analysis
+  - Direct image-to-image comparison with detailed metrics
+  - Batch comparison support through configuration files
+  - Visual regression testing capabilities
+  - Exit codes for CI/CD integration (0 = similar, 1 = different)
+
 ## [0.1.0] - 2025-08-14
 
 ### Added
