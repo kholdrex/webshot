@@ -6,6 +6,7 @@ use tempfile::TempDir;
 const TEST_URL: &str = "https://httpbin.org/html";
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_basic_screenshot() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test.png");
@@ -28,6 +29,7 @@ async fn test_basic_screenshot() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_pdf_generation() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("test.pdf");
@@ -45,6 +47,7 @@ async fn test_pdf_generation() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_element_screenshot() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("element.png");
@@ -61,6 +64,7 @@ async fn test_element_screenshot() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_javascript_execution() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("js-test.png");
@@ -77,6 +81,7 @@ async fn test_javascript_execution() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_text_extraction() {
     let mut cmd = Command::cargo_bin("webshot").unwrap();
     cmd.arg("text").arg(TEST_URL).arg("-s").arg("h1");
@@ -87,6 +92,7 @@ async fn test_text_extraction() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_config_processing() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -124,6 +130,7 @@ screenshots:
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_jpeg_quality() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("quality.jpg");
@@ -144,6 +151,7 @@ async fn test_jpeg_quality() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_retina_mode() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("retina.png");
@@ -159,6 +167,7 @@ async fn test_retina_mode() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_wait_for_element() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("wait.png");
@@ -175,6 +184,7 @@ async fn test_wait_for_element() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_custom_user_agent() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("user-agent.png");
@@ -191,6 +201,7 @@ async fn test_custom_user_agent() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium startup before validation completes"]
 async fn test_error_handling_invalid_url() {
     let mut cmd = Command::cargo_bin("webshot").unwrap();
     cmd.arg("not-a-valid-url");
@@ -199,6 +210,7 @@ async fn test_error_handling_invalid_url() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_error_handling_invalid_selector() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("invalid.png");
@@ -235,6 +247,7 @@ async fn test_version_output() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_verbose_logging() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("verbose.png");
@@ -247,6 +260,7 @@ async fn test_verbose_logging() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_timeout_handling() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("timeout.png");
@@ -268,6 +282,7 @@ async fn test_timeout_handling() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium startup before validation completes"]
 async fn test_config_validation() {
     let temp_dir = TempDir::new().unwrap();
 
@@ -288,6 +303,7 @@ screenshots:
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_subcommand_screenshot() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("subcommand.png");
@@ -303,6 +319,7 @@ async fn test_subcommand_screenshot() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_subcommand_pdf() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("subcommand.pdf");
@@ -322,6 +339,7 @@ async fn test_subcommand_pdf() {
 }
 
 #[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_parallel_processing() {
     let temp_dir = TempDir::new().unwrap();
 
