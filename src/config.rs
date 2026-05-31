@@ -163,7 +163,9 @@ impl Config {
             if screenshot.height == default_height() && config.defaults.height != default_height() {
                 screenshot.height = config.defaults.height;
             }
-            if screenshot.timeout == default_timeout() && config.defaults.timeout != default_timeout() {
+            if screenshot.timeout == default_timeout()
+                && config.defaults.timeout != default_timeout()
+            {
                 screenshot.timeout = config.defaults.timeout;
             }
             if screenshot.user_agent.is_none() && config.defaults.user_agent.is_some() {
@@ -172,12 +174,15 @@ impl Config {
             if screenshot.quality.is_none() && config.defaults.quality.is_some() {
                 screenshot.quality = config.defaults.quality;
             }
-            
+
             // Merge headers
             for (key, value) in &config.defaults.headers {
-                screenshot.headers.entry(key.clone()).or_insert_with(|| value.clone());
+                screenshot
+                    .headers
+                    .entry(key.clone())
+                    .or_insert_with(|| value.clone());
             }
-            
+
             // Merge cookies
             if screenshot.cookies.is_empty() && !config.defaults.cookies.is_empty() {
                 screenshot.cookies = config.defaults.cookies.clone();
@@ -204,13 +209,16 @@ impl Config {
     /// Validate the configuration
     pub fn validate(&self) -> Result<()> {
         if self.screenshots.is_empty() {
-            return Err(WebshotError::config("No screenshots defined in configuration"));
+            return Err(WebshotError::config(
+                "No screenshots defined in configuration",
+            ));
         }
 
         for (i, screenshot) in self.screenshots.iter().enumerate() {
             // Validate URL
-            url::Url::parse(&screenshot.url)
-                .map_err(|e| WebshotError::config(format!("Invalid URL in screenshot {}: {}", i, e)))?;
+            url::Url::parse(&screenshot.url).map_err(|e| {
+                WebshotError::config(format!("Invalid URL in screenshot {}: {}", i, e))
+            })?;
 
             // Validate viewport dimensions
             if screenshot.width == 0 || screenshot.height == 0 {
@@ -294,7 +302,6 @@ fn default_diff_color() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_config_serialization() {

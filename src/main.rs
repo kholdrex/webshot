@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use webshot::{Browser, Config, Result, ScreenshotOptions, ComparisonOptions, ImageComparator};
+use webshot::{Browser, ComparisonOptions, Config, ImageComparator, Result, ScreenshotOptions};
 
 #[derive(Parser)]
 #[command(
@@ -242,8 +242,21 @@ async fn main() -> Result<()> {
             wait,
         }) => {
             take_screenshot(
-                &url, output, width, height, selector, javascript, wait_for, timeout, retina,
-                quality, wait, chrome_path, chrome_flags, no_javascript, user_agent,
+                &url,
+                output,
+                width,
+                height,
+                selector,
+                javascript,
+                wait_for,
+                timeout,
+                retina,
+                quality,
+                wait,
+                chrome_path,
+                chrome_flags,
+                no_javascript,
+                user_agent,
             )
             .await
         }
@@ -259,8 +272,19 @@ async fn main() -> Result<()> {
             timeout,
         }) => {
             generate_pdf(
-                &url, output, &format, landscape, background, scale, javascript, wait_for,
-                timeout, chrome_path, chrome_flags, no_javascript, user_agent,
+                &url,
+                output,
+                &format,
+                landscape,
+                background,
+                scale,
+                javascript,
+                wait_for,
+                timeout,
+                chrome_path,
+                chrome_flags,
+                no_javascript,
+                user_agent,
             )
             .await
         }
@@ -268,7 +292,17 @@ async fn main() -> Result<()> {
             config_file,
             output_dir,
             parallel,
-        }) => process_config(&config_file, output_dir, parallel, chrome_path, chrome_flags, no_javascript).await,
+        }) => {
+            process_config(
+                &config_file,
+                output_dir,
+                parallel,
+                chrome_path,
+                chrome_flags,
+                no_javascript,
+            )
+            .await
+        }
         Some(Commands::Text {
             url,
             selector,
@@ -277,7 +311,19 @@ async fn main() -> Result<()> {
             wait_for,
             timeout,
         }) => {
-            extract_text(&url, selector, output, javascript, wait_for, timeout, chrome_path, chrome_flags, no_javascript, user_agent).await
+            extract_text(
+                &url,
+                selector,
+                output,
+                javascript,
+                wait_for,
+                timeout,
+                chrome_path,
+                chrome_flags,
+                no_javascript,
+                user_agent,
+            )
+            .await
         }
         Some(Commands::Compare {
             image1,
@@ -292,9 +338,18 @@ async fn main() -> Result<()> {
             format,
         }) => {
             compare_images(
-                &image1, &image2, output, &algorithm, threshold, diff_image, diff_path,
-                ignore_antialiasing, &diff_color, &format,
-            ).await
+                &image1,
+                &image2,
+                output,
+                &algorithm,
+                threshold,
+                diff_image,
+                diff_path,
+                ignore_antialiasing,
+                &diff_color,
+                &format,
+            )
+            .await
         }
         None => {
             // Default behavior: screenshot with URL as positional argument
@@ -343,6 +398,7 @@ fn init_logging(verbose: u8) {
         .init();
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn take_screenshot(
     url: &str,
     output: Option<PathBuf>,
@@ -362,12 +418,7 @@ async fn take_screenshot(
 ) -> Result<()> {
     info!("Taking screenshot of: {}", url);
 
-    let browser = Browser::new(
-        chrome_path,
-        chrome_flags,
-        !no_javascript,
-    )
-    .await?;
+    let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
 
     let options = ScreenshotOptions {
         width,
@@ -382,7 +433,7 @@ async fn take_screenshot(
         user_agent,
     };
 
-    let output_path = output.as_ref().map(|p| p.clone()).unwrap_or_else(|| {
+    let output_path = output.clone().unwrap_or_else(|| {
         // Determine format from output path or default to PNG
         let format = if let Some(ref output_path) = output {
             if let Some(ext) = output_path.extension() {
@@ -398,7 +449,7 @@ async fn take_screenshot(
         } else {
             "png"
         };
-        
+
         PathBuf::from(format!(
             "screenshot_{}.{}",
             chrono::Utc::now().format("%Y%m%d_%H%M%S"),
@@ -412,6 +463,7 @@ async fn take_screenshot(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn generate_pdf(
     url: &str,
     output: Option<PathBuf>,
@@ -429,12 +481,7 @@ async fn generate_pdf(
 ) -> Result<()> {
     info!("Generating PDF of: {}", url);
 
-    let browser = Browser::new(
-        chrome_path,
-        chrome_flags,
-        !no_javascript,
-    )
-    .await?;
+    let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
 
     let output_path = output.unwrap_or_else(|| {
         PathBuf::from(format!(
@@ -473,19 +520,17 @@ async fn process_config(
     info!("Processing config file: {}", config_file.display());
 
     let config = Config::from_file(config_file)?;
-    let browser = Browser::new(
-        chrome_path,
-        chrome_flags,
-        !no_javascript,
-    )
-    .await?;
+    let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
 
-    browser.process_config(&config, output_dir, parallel).await?;
+    browser
+        .process_config(&config, output_dir, parallel)
+        .await?;
 
     println!("Batch processing completed successfully");
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn extract_text(
     url: &str,
     selector: Option<String>,
@@ -500,12 +545,7 @@ async fn extract_text(
 ) -> Result<()> {
     info!("Extracting text from: {}", url);
 
-    let browser = Browser::new(
-        chrome_path,
-        chrome_flags,
-        !no_javascript,
-    )
-    .await?;
+    let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
 
     let text = browser
         .extract_text(url, selector, javascript, wait_for, timeout, user_agent)
@@ -525,6 +565,7 @@ async fn extract_text(
 }
 
 /// Compare two images and output results
+#[allow(clippy::too_many_arguments)]
 async fn compare_images(
     image1_path: &std::path::Path,
     image2_path: &std::path::Path,
@@ -537,7 +578,7 @@ async fn compare_images(
     diff_color: &str,
     output_format: &str,
 ) -> Result<()> {
-    use webshot::comparison::{ComparisonAlgorithm};
+    use webshot::comparison::ComparisonAlgorithm;
 
     // Parse algorithm
     let algorithm = match algorithm.to_lowercase().as_str() {
@@ -545,9 +586,12 @@ async fn compare_images(
         "ssim" => ComparisonAlgorithm::SSIM,
         "mse" => ComparisonAlgorithm::MSE,
         "psnr" => ComparisonAlgorithm::PSNR,
-        _ => return Err(webshot::WebshotError::config(format!(
-            "Unknown algorithm: {}. Supported: pixel-diff, ssim, mse, psnr", algorithm
-        ))),
+        _ => {
+            return Err(webshot::WebshotError::config(format!(
+                "Unknown algorithm: {}. Supported: pixel-diff, ssim, mse, psnr",
+                algorithm
+            )))
+        }
     };
 
     // Parse diff color
@@ -578,17 +622,22 @@ async fn compare_images(
 
     options.validate()?;
 
-    info!("Comparing images: {} vs {}", image1_path.display(), image2_path.display());
-    
+    info!(
+        "Comparing images: {} vs {}",
+        image1_path.display(),
+        image2_path.display()
+    );
+
     // Perform comparison
     let result = ImageComparator::compare_files(image1_path, image2_path, &options)?;
 
     // Output results
     match output_format.to_lowercase().as_str() {
         "json" => {
-            let json = serde_json::to_string_pretty(&result)
-                .map_err(|e| webshot::WebshotError::config(format!("JSON serialization failed: {}", e)))?;
-            
+            let json = serde_json::to_string_pretty(&result).map_err(|e| {
+                webshot::WebshotError::config(format!("JSON serialization failed: {}", e))
+            })?;
+
             if let Some(output_path) = output {
                 std::fs::write(output_path, json)?;
                 info!("Comparison results saved to JSON file");
@@ -598,7 +647,7 @@ async fn compare_images(
         }
         "text" => {
             let text_output = format_comparison_result(&result);
-            
+
             if let Some(output_path) = output {
                 std::fs::write(output_path, text_output)?;
                 info!("Comparison results saved to text file");
@@ -606,17 +655,26 @@ async fn compare_images(
                 println!("{}", text_output);
             }
         }
-        _ => return Err(webshot::WebshotError::config(format!(
-            "Unknown output format: {}. Supported: json, text", output_format
-        ))),
+        _ => {
+            return Err(webshot::WebshotError::config(format!(
+                "Unknown output format: {}. Supported: json, text",
+                output_format
+            )))
+        }
     }
 
     // Exit with appropriate code
     if result.similar {
-        info!("Images are similar (similarity: {:.2}%)", result.similarity * 100.0);
+        info!(
+            "Images are similar (similarity: {:.2}%)",
+            result.similarity * 100.0
+        );
         std::process::exit(0);
     } else {
-        info!("Images are different (similarity: {:.2}%)", result.similarity * 100.0);
+        info!(
+            "Images are different (similarity: {:.2}%)",
+            result.similarity * 100.0
+        );
         std::process::exit(1);
     }
 }
@@ -626,15 +684,22 @@ fn parse_rgb_color(color_str: &str) -> Result<(u8, u8, u8)> {
     let parts: Vec<&str> = color_str.split(',').collect();
     if parts.len() != 3 {
         return Err(webshot::WebshotError::config(format!(
-            "Invalid color format: {}. Expected format: R,G,B (e.g., 255,0,0)", color_str
+            "Invalid color format: {}. Expected format: R,G,B (e.g., 255,0,0)",
+            color_str
         )));
     }
 
-    let r = parts[0].trim().parse::<u8>()
+    let r = parts[0]
+        .trim()
+        .parse::<u8>()
         .map_err(|_| webshot::WebshotError::config(format!("Invalid red value: {}", parts[0])))?;
-    let g = parts[1].trim().parse::<u8>()
+    let g = parts[1]
+        .trim()
+        .parse::<u8>()
         .map_err(|_| webshot::WebshotError::config(format!("Invalid green value: {}", parts[1])))?;
-    let b = parts[2].trim().parse::<u8>()
+    let b = parts[2]
+        .trim()
+        .parse::<u8>()
         .map_err(|_| webshot::WebshotError::config(format!("Invalid blue value: {}", parts[2])))?;
 
     Ok((r, g, b))
@@ -643,28 +708,36 @@ fn parse_rgb_color(color_str: &str) -> Result<(u8, u8, u8)> {
 /// Format comparison result as human-readable text
 fn format_comparison_result(result: &webshot::ComparisonResult) -> String {
     let mut output = String::new();
-    
-    output.push_str(&format!("Image Comparison Results\n"));
-    output.push_str(&format!("========================\n\n"));
-    
+
+    output.push_str("Image Comparison Results\n");
+    output.push_str("========================\n\n");
+
     output.push_str(&format!("Algorithm: {:?}\n", result.algorithm));
     output.push_str(&format!("Threshold: {:.2}\n", result.threshold));
-    output.push_str(&format!("Similarity: {:.4} ({:.2}%)\n", result.similarity, result.similarity * 100.0));
-    output.push_str(&format!("Similar: {}\n", if result.similar { "YES" } else { "NO" }));
-    
+    output.push_str(&format!(
+        "Similarity: {:.4} ({:.2}%)\n",
+        result.similarity,
+        result.similarity * 100.0
+    ));
+    output.push_str(&format!(
+        "Similar: {}\n",
+        if result.similar { "YES" } else { "NO" }
+    ));
+
     if let Some(diff_pixels) = result.different_pixels {
-        output.push_str(&format!("Different pixels: {}/{} ({:.2}%)\n", 
-            diff_pixels, 
+        output.push_str(&format!(
+            "Different pixels: {}/{} ({:.2}%)\n",
+            diff_pixels,
             result.total_pixels,
             (diff_pixels as f64 / result.total_pixels as f64) * 100.0
         ));
     }
-    
+
     output.push_str(&format!("Total pixels: {}\n", result.total_pixels));
-    
+
     if let Some(diff_path) = &result.diff_image_path {
         output.push_str(&format!("Difference image: {}\n", diff_path.display()));
     }
-    
+
     output
 }

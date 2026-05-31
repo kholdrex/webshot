@@ -5,9 +5,10 @@ use std::path::Path;
 use tracing::{debug, info};
 
 /// Image comparison algorithms
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ComparisonAlgorithm {
     /// Pixel-by-pixel difference
+    #[default]
     PixelDiff,
     /// Structural Similarity Index (SSIM)
     SSIM,
@@ -15,12 +16,6 @@ pub enum ComparisonAlgorithm {
     MSE,
     /// Peak Signal-to-Noise Ratio
     PSNR,
-}
-
-impl Default for ComparisonAlgorithm {
-    fn default() -> Self {
-        Self::PixelDiff
-    }
 }
 
 /// Comparison options
@@ -87,7 +82,7 @@ impl ImageComparator {
             .map_err(|e| WebshotError::config(format!("Failed to load first image: {}", e)))?;
         let image2 = image::open(&image2_path)
             .map_err(|e| WebshotError::config(format!("Failed to load second image: {}", e)))?;
-        
+
         Self::compare_images(&image1, &image2, options)
     }
 
@@ -113,7 +108,7 @@ impl ImageComparator {
         let total_pixels = width * height;
 
         info!("Comparing images using {:?} algorithm", options.algorithm);
-        
+
         let (similarity, different_pixels) = match options.algorithm {
             ComparisonAlgorithm::PixelDiff => Self::pixel_diff_comparison(&img1, &img2, options),
             ComparisonAlgorithm::SSIM => (Self::ssim_comparison(&img1, &img2)?, None),
@@ -167,8 +162,11 @@ impl ImageComparator {
 
         let total_pixels = width * height;
         let similarity = 1.0 - (different_pixels as f64 / total_pixels as f64);
-        
-        debug!("Pixel diff: {}/{} different pixels", different_pixels, total_pixels);
+
+        debug!(
+            "Pixel diff: {}/{} different pixels",
+            different_pixels, total_pixels
+        );
         (similarity, Some(different_pixels))
     }
 
@@ -183,7 +181,7 @@ impl ImageComparator {
         let r_diff = (pixel1[0] as i16 - pixel2[0] as i16).abs();
         let g_diff = (pixel1[1] as i16 - pixel2[1] as i16).abs();
         let b_diff = (pixel1[2] as i16 - pixel2[2] as i16).abs();
-        
+
         r_diff <= threshold && g_diff <= threshold && b_diff <= threshold
     }
 
@@ -192,7 +190,7 @@ impl ImageComparator {
         // Convert to grayscale for SSIM calculation
         let gray1 = Self::rgb_to_grayscale(img1);
         let gray2 = Self::rgb_to_grayscale(img2);
-        
+
         let ssim = Self::calculate_ssim(&gray1, &gray2)?;
         Ok(ssim)
     }
@@ -215,7 +213,7 @@ impl ImageComparator {
         }
 
         mse /= (width * height * 3) as f64;
-        
+
         // Convert MSE to similarity (lower MSE = higher similarity)
         1.0 / (1.0 + mse / 255.0)
     }
@@ -246,7 +244,7 @@ impl ImageComparator {
         }
 
         let psnr = 20.0 * (255.0_f64).log10() - 10.0 * mse.log10();
-        
+
         // Convert PSNR to similarity (higher PSNR = higher similarity)
         // Typical PSNR values: 30-50 dB is good, >50 dB is very good
         // Normalize PSNR to 0-1 range, where 30dB = 0.3, 50dB = 0.5, etc.
@@ -265,8 +263,8 @@ impl ImageComparator {
         for y in 0..height {
             for x in 0..width {
                 let pixel = img.get_pixel(x, y);
-                let gray_value = (0.299 * pixel[0] as f64 
-                    + 0.587 * pixel[1] as f64 
+                let gray_value = (0.299 * pixel[0] as f64
+                    + 0.587 * pixel[1] as f64
                     + 0.114 * pixel[2] as f64) as u8;
                 gray.put_pixel(x, y, image::Luma([gray_value]));
             }
@@ -281,7 +279,7 @@ impl ImageComparator {
         img2: &ImageBuffer<image::Luma<u8>, Vec<u8>>,
     ) -> Result<f64> {
         let (width, height) = img1.dimensions();
-        
+
         // Constants for SSIM calculation
         let k1 = 0.01_f64;
         let k2 = 0.03_f64;
@@ -313,10 +311,10 @@ impl ImageComparator {
             for x in 0..width {
                 let val1 = img1.get_pixel(x, y)[0] as f64;
                 let val2 = img2.get_pixel(x, y)[0] as f64;
-                
+
                 let diff1 = val1 - mean1;
                 let diff2 = val2 - mean2;
-                
+
                 var1 += diff1 * diff1;
                 var2 += diff2 * diff2;
                 covar += diff1 * diff2;
@@ -330,9 +328,9 @@ impl ImageComparator {
         // Calculate SSIM
         let numerator = (2.0 * mean1 * mean2 + c1) * (2.0 * covar + c2);
         let denominator = (mean1 * mean1 + mean2 * mean2 + c1) * (var1 + var2 + c2);
-        
+
         let ssim = numerator / denominator;
-        Ok(ssim.max(0.0).min(1.0))
+        Ok(ssim.clamp(0.0, 1.0))
     }
 
     /// Generate a difference image highlighting changes
@@ -355,19 +353,27 @@ impl ImageComparator {
                     diff_img.put_pixel(x, y, *pixel1);
                 } else {
                     // Highlight difference
-                    diff_img.put_pixel(x, y, Rgb([
-                        options.diff_color.0,
-                        options.diff_color.1,
-                        options.diff_color.2,
-                    ]));
+                    diff_img.put_pixel(
+                        x,
+                        y,
+                        Rgb([
+                            options.diff_color.0,
+                            options.diff_color.1,
+                            options.diff_color.2,
+                        ]),
+                    );
                 }
             }
         }
 
-        diff_img.save(&output_path)
+        diff_img
+            .save(&output_path)
             .map_err(|e| WebshotError::config(format!("Failed to save diff image: {}", e)))?;
 
-        info!("Difference image saved to: {}", output_path.as_ref().display());
+        info!(
+            "Difference image saved to: {}",
+            output_path.as_ref().display()
+        );
         Ok(())
     }
 }
@@ -442,10 +448,10 @@ mod tests {
     fn test_identical_images() {
         let img1 = create_test_image(100, 100, [255, 0, 0]);
         let img2 = create_test_image(100, 100, [255, 0, 0]);
-        
+
         let options = ComparisonOptions::new();
         let result = ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
-        
+
         assert!(result.similar);
         assert_eq!(result.similarity, 1.0);
         assert_eq!(result.different_pixels, Some(0));
@@ -455,10 +461,10 @@ mod tests {
     fn test_different_images() {
         let img1 = create_test_image(100, 100, [255, 0, 0]);
         let img2 = create_test_image(100, 100, [0, 255, 0]);
-        
+
         let options = ComparisonOptions::new();
         let result = ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
-        
+
         assert!(!result.similar);
         assert_eq!(result.similarity, 0.0);
         assert_eq!(result.different_pixels, Some(10000));
@@ -468,10 +474,10 @@ mod tests {
     fn test_dimension_mismatch() {
         let img1 = create_test_image(100, 100, [255, 0, 0]);
         let img2 = create_test_image(200, 100, [255, 0, 0]);
-        
+
         let options = ComparisonOptions::new();
         let result = ImageComparator::compare_images(&img1.into(), &img2.into(), &options);
-        
+
         assert!(result.is_err());
     }
 
@@ -479,15 +485,14 @@ mod tests {
     fn test_diff_image_generation() {
         let temp_dir = TempDir::new().unwrap();
         let diff_path = temp_dir.path().join("diff.png");
-        
+
         let img1 = create_test_image(10, 10, [255, 0, 0]);
         let img2 = create_test_image(10, 10, [0, 255, 0]);
-        
-        let options = ComparisonOptions::new()
-            .generate_diff_image(&diff_path);
-        
+
+        let options = ComparisonOptions::new().generate_diff_image(&diff_path);
+
         let result = ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
-        
+
         assert!(diff_path.exists());
         assert_eq!(result.diff_image_path, Some(diff_path));
     }
@@ -503,15 +508,21 @@ mod tests {
         ] {
             let img1 = create_test_image(50, 50, [255, 0, 0]);
             let img2 = create_test_image(50, 50, [255, 0, 0]); // Identical
-            
+
             let options = ComparisonOptions::new().algorithm(algorithm);
-            let result = ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
-            
+            let result =
+                ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
+
             // Identical images should have high similarity
-            assert!(result.similarity >= 0.9, "Algorithm {:?} didn't recognize identical images: {}", algorithm, result.similarity);
+            assert!(
+                result.similarity >= 0.9,
+                "Algorithm {:?} didn't recognize identical images: {}",
+                algorithm,
+                result.similarity
+            );
             assert_eq!(result.algorithm, algorithm);
         }
-        
+
         // Test with completely different images
         for algorithm in [
             ComparisonAlgorithm::PixelDiff,
@@ -521,15 +532,30 @@ mod tests {
         ] {
             let img1 = create_test_image(50, 50, [255, 0, 0]); // Red
             let img2 = create_test_image(50, 50, [0, 255, 0]); // Green - completely different
-            
+
             let options = ComparisonOptions::new().algorithm(algorithm);
-            let result = ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
-            
+            let result =
+                ImageComparator::compare_images(&img1.into(), &img2.into(), &options).unwrap();
+
             // Completely different images should have low similarity
             // SSIM measures structural similarity, so solid colors might still be similar
-            let max_similarity = if algorithm == ComparisonAlgorithm::SSIM { 0.9 } else { 0.5 };
-            assert!(result.similarity <= max_similarity, "Algorithm {:?} gave too high similarity for different images: {}", algorithm, result.similarity);
-            assert!(result.similarity >= 0.0, "Algorithm {:?} returned negative similarity: {}", algorithm, result.similarity);
+            let max_similarity = if algorithm == ComparisonAlgorithm::SSIM {
+                0.9
+            } else {
+                0.5
+            };
+            assert!(
+                result.similarity <= max_similarity,
+                "Algorithm {:?} gave too high similarity for different images: {}",
+                algorithm,
+                result.similarity
+            );
+            assert!(
+                result.similarity >= 0.0,
+                "Algorithm {:?} returned negative similarity: {}",
+                algorithm,
+                result.similarity
+            );
             assert_eq!(result.algorithm, algorithm);
         }
     }

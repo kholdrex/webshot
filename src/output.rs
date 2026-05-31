@@ -32,18 +32,13 @@ impl OutputHandler {
         let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
         let sanitized_domain = sanitize_filename(domain);
 
-        format!(
-            "{}_{}.{}",
-            sanitized_domain,
-            timestamp,
-            format.extension()
-        )
+        format!("{}_{}.{}", sanitized_domain, timestamp, format.extension())
     }
 
     /// Validate that the output path has a supported extension
     pub fn validate_output_path<P: AsRef<Path>>(path: P) -> Result<ImageFormat> {
         let path = path.as_ref();
-        
+
         let extension = path
             .extension()
             .and_then(|ext| ext.to_str())
@@ -72,8 +67,12 @@ impl OutputHandler {
 
         let img = match source_format {
             ImageFormat::Png => image::load_from_memory_with_format(data, image::ImageFormat::Png)?,
-            ImageFormat::Jpeg => image::load_from_memory_with_format(data, image::ImageFormat::Jpeg)?,
-            ImageFormat::WebP => image::load_from_memory_with_format(data, image::ImageFormat::WebP)?,
+            ImageFormat::Jpeg => {
+                image::load_from_memory_with_format(data, image::ImageFormat::Jpeg)?
+            }
+            ImageFormat::WebP => {
+                image::load_from_memory_with_format(data, image::ImageFormat::WebP)?
+            }
             ImageFormat::Pdf => {
                 return Err(WebshotError::config(
                     "Cannot convert from PDF format".to_string(),
@@ -90,7 +89,8 @@ impl OutputHandler {
             }
             ImageFormat::Jpeg => {
                 let quality = quality.unwrap_or(90);
-                let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
+                let encoder =
+                    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::WebP => {
@@ -141,21 +141,22 @@ impl OutputHandler {
     pub fn get_file_size<P: AsRef<Path>>(path: P) -> Result<String> {
         let metadata = std::fs::metadata(path)?;
         let size = metadata.len();
-        
+
         Ok(format_file_size(size))
     }
 
     /// Create a temporary file with the given extension
     pub fn create_temp_file(extension: &str) -> Result<PathBuf> {
         use tempfile::NamedTempFile;
-        
-        let temp_file = NamedTempFile::with_suffix(&format!(".{}", extension))?;
+
+        let temp_file = NamedTempFile::with_suffix(format!(".{}", extension))?;
         let path = temp_file.path().to_path_buf();
-        
+
         // Keep the file but close the handle
-        temp_file.keep()
+        temp_file
+            .keep()
             .map_err(|e| WebshotError::config(format!("Failed to keep temp file: {}", e)))?;
-        
+
         Ok(path)
     }
 
@@ -196,14 +197,14 @@ impl OutputHandler {
     /// Check if file already exists and handle overwrites
     pub fn handle_existing_file<P: AsRef<Path>>(path: P, overwrite: bool) -> Result<()> {
         let path = path.as_ref();
-        
+
         if path.exists() && !overwrite {
             return Err(WebshotError::config(format!(
                 "File already exists: {}. Use --force to overwrite.",
                 path.display()
             )));
         }
-        
+
         Ok(())
     }
 }
@@ -264,7 +265,8 @@ mod tests {
 
     #[test]
     fn test_generate_filename() {
-        let filename = OutputHandler::generate_filename("https://example.com/path", ImageFormat::Png);
+        let filename =
+            OutputHandler::generate_filename("https://example.com/path", ImageFormat::Png);
         assert!(filename.starts_with("example.com_"));
         assert!(filename.ends_with(".png"));
 
