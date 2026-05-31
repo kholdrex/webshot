@@ -27,7 +27,7 @@ impl Browser {
 
         let mut args_str = vec![
             "--no-sandbox",
-            "--disable-gpu", 
+            "--disable-gpu",
             "--disable-dev-shm-usage",
             "--disable-setuid-sandbox",
             "--no-first-run",
@@ -51,7 +51,7 @@ impl Browser {
 
         let args_os: Vec<std::ffi::OsString> = args_str.iter().map(|s| (*s).into()).collect();
         let args_refs: Vec<&std::ffi::OsStr> = args_os.iter().map(|s| s.as_os_str()).collect();
-        
+
         let launch_options = if let Some(path) = chrome_path {
             LaunchOptions::default_builder()
                 .headless(true)
@@ -89,7 +89,9 @@ impl Browser {
     ) -> Result<()> {
         options.validate()?;
 
-        let tab = self.browser.new_tab()
+        let tab = self
+            .browser
+            .new_tab()
             .map_err(|e| WebshotError::Tab(e.to_string()))?;
         self.setup_tab(&tab, options).await?;
 
@@ -115,7 +117,8 @@ impl Browser {
         // Wait for specific element if requested
         if let Some(selector) = &options.wait_for {
             info!("Waiting for element: {}", selector);
-            self.wait_for_element(&tab, selector, options.timeout).await?;
+            self.wait_for_element(&tab, selector, options.timeout)
+                .await?;
         }
 
         // Additional wait time
@@ -143,6 +146,7 @@ impl Browser {
     }
 
     /// Generate a PDF from a webpage
+    #[allow(clippy::too_many_arguments)]
     pub async fn pdf<P: AsRef<Path>>(
         &self,
         url: &str,
@@ -156,13 +160,15 @@ impl Browser {
         timeout: u64,
         user_agent: Option<String>,
     ) -> Result<()> {
-        let tab = self.browser.new_tab()
+        let tab = self
+            .browser
+            .new_tab()
             .map_err(|e| WebshotError::Tab(e.to_string()))?;
 
         // Set up the tab
         if let Some(user_agent) = user_agent {
             tab.set_user_agent(&user_agent, None, None)
-                .map_err(|e| WebshotError::Browser(e.into()))?;
+                .map_err(WebshotError::Browser)?;
         }
 
         info!("Navigating to: {}", url);
@@ -175,7 +181,7 @@ impl Browser {
         if let Some(script) = &javascript {
             if self.javascript_enabled {
                 info!("Executing JavaScript: {}", script);
-                tab.evaluate(&script, false)
+                tab.evaluate(script, false)
                     .map_err(|e| WebshotError::javascript(e.to_string()))?;
             } else {
                 warn!("JavaScript disabled, skipping script execution");
@@ -211,7 +217,8 @@ impl Browser {
             generate_tagged_pdf: Some(false),
         };
 
-        let pdf_data = tab.print_to_pdf(Some(pdf_options))
+        let pdf_data = tab
+            .print_to_pdf(Some(pdf_options))
             .map_err(|e| WebshotError::pdf(e.to_string()))?;
         std::fs::write(&output_path, pdf_data)?;
 
@@ -229,13 +236,15 @@ impl Browser {
         timeout: u64,
         user_agent: Option<String>,
     ) -> Result<String> {
-        let tab = self.browser.new_tab()
+        let tab = self
+            .browser
+            .new_tab()
             .map_err(|e| WebshotError::Tab(e.to_string()))?;
 
         // Set up the tab
         if let Some(user_agent) = user_agent {
             tab.set_user_agent(&user_agent, None, None)
-                .map_err(|e| WebshotError::Browser(e.into()))?;
+                .map_err(WebshotError::Browser)?;
         }
 
         info!("Navigating to: {}", url);
@@ -248,7 +257,7 @@ impl Browser {
         if let Some(script) = &javascript {
             if self.javascript_enabled {
                 info!("Executing JavaScript: {}", script);
-                tab.evaluate(&script, false)
+                tab.evaluate(script, false)
                     .map_err(|e| WebshotError::javascript(e.to_string()))?;
             } else {
                 warn!("JavaScript disabled, skipping script execution");
@@ -263,16 +272,15 @@ impl Browser {
 
         let text = if let Some(selector_str) = selector {
             info!("Extracting text from element: {}", selector_str);
-            let element = tab.find_element(&selector_str)
-                .map_err(|_e| WebshotError::ElementNotFound {
-                    selector: selector_str,
-                })?;
-            element.get_inner_text()
-                .map_err(|e| WebshotError::Browser(e.into()))?
+            let element =
+                tab.find_element(&selector_str)
+                    .map_err(|_e| WebshotError::ElementNotFound {
+                        selector: selector_str,
+                    })?;
+            element.get_inner_text().map_err(WebshotError::Browser)?
         } else {
             info!("Extracting text from entire page");
-            tab.get_content()
-                .map_err(|e| WebshotError::Browser(e.into()))?
+            tab.get_content().map_err(WebshotError::Browser)?
         };
 
         Ok(text)
@@ -309,7 +317,10 @@ impl Browser {
             }
         });
 
-        let results: Vec<Result<()>> = stream::iter(tasks).buffer_unordered(parallel).collect().await;
+        let results: Vec<Result<()>> = stream::iter(tasks)
+            .buffer_unordered(parallel)
+            .collect()
+            .await;
 
         // Check for errors
         for (i, result) in results.into_iter().enumerate() {
@@ -325,27 +336,30 @@ impl Browser {
         // Set viewport using emulation
         tab.set_default_timeout(std::time::Duration::from_secs(options.timeout));
 
-        tab.call_method(headless_chrome::protocol::cdp::Emulation::SetDeviceMetricsOverride {
-            width: options.width,
-            height: options.height,
-            device_scale_factor: options.device_scale_factor(),
-            mobile: false,
-            scale: None,
-            screen_width: None,
-            screen_height: None,
-            position_x: None,
-            position_y: None,
-            dont_set_visible_size: None,
-            screen_orientation: None,
-            viewport: None,
-            display_feature: None,
-            device_posture: None,
-        }).map_err(|e| WebshotError::Browser(e.into()))?;
+        tab.call_method(
+            headless_chrome::protocol::cdp::Emulation::SetDeviceMetricsOverride {
+                width: options.width,
+                height: options.height,
+                device_scale_factor: options.device_scale_factor(),
+                mobile: false,
+                scale: None,
+                screen_width: None,
+                screen_height: None,
+                position_x: None,
+                position_y: None,
+                dont_set_visible_size: None,
+                screen_orientation: None,
+                viewport: None,
+                display_feature: None,
+                device_posture: None,
+            },
+        )
+        .map_err(WebshotError::Browser)?;
 
         // Set user agent if provided
         if let Some(user_agent) = &options.user_agent {
             tab.set_user_agent(user_agent, None, None)
-                .map_err(|e| WebshotError::Browser(e.into()))?;
+                .map_err(WebshotError::Browser)?;
         }
 
         Ok(())
@@ -381,21 +395,18 @@ impl Browser {
     ) -> Result<()> {
         let screenshot_data = if let Some(selector) = &options.selector {
             info!("Taking element screenshot: {}", selector);
-            let element = tab
-                .find_element(selector)
-                .map_err(|_e| WebshotError::ElementNotFound {
-                    selector: selector.clone(),
-                })?;
-            element.capture_screenshot(Page::CaptureScreenshotFormatOption::Png)
+            let element =
+                tab.find_element(selector)
+                    .map_err(|_e| WebshotError::ElementNotFound {
+                        selector: selector.clone(),
+                    })?;
+            element
+                .capture_screenshot(Page::CaptureScreenshotFormatOption::Png)
                 .map_err(|e| WebshotError::screenshot(e.to_string()))?
         } else {
             info!("Taking full page screenshot");
-            tab.capture_screenshot(
-                Page::CaptureScreenshotFormatOption::Png,
-                None,
-                None,
-                true,
-            ).map_err(|e| WebshotError::screenshot(e.to_string()))?
+            tab.capture_screenshot(Page::CaptureScreenshotFormatOption::Png, None, None, true)
+                .map_err(|e| WebshotError::screenshot(e.to_string()))?
         };
 
         match format {
@@ -407,15 +418,16 @@ impl Browser {
                 let img = image::load_from_memory(&screenshot_data)?;
                 let mut output = std::fs::File::create(&output_path)?;
                 let quality = options.quality.unwrap_or(90);
-                
-                let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
+
+                let encoder =
+                    image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, quality);
                 img.write_with_encoder(encoder)?;
             }
             ImageFormat::WebP => {
                 // Convert PNG to WebP
                 let img = image::load_from_memory(&screenshot_data)?;
                 let mut output = std::fs::File::create(&output_path)?;
-                
+
                 let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut output);
                 img.write_with_encoder(encoder)?;
             }
@@ -434,7 +446,9 @@ impl Browser {
         config: ScreenshotConfig,
         output_dir: Option<PathBuf>,
     ) -> Result<()> {
-        let tab = self.browser.new_tab()
+        let tab = self
+            .browser
+            .new_tab()
             .map_err(|e| WebshotError::Tab(e.to_string()))?;
 
         // Determine output path
@@ -485,7 +499,7 @@ impl Browser {
                 partition_key: None,
             };
             tab.set_cookies(vec![cookie_param])
-                .map_err(|e| WebshotError::Browser(e.into()))?;
+                .map_err(WebshotError::Browser)?;
         }
 
         // Set custom headers
@@ -496,13 +510,13 @@ impl Browser {
                 .map(|(k, v)| (k.as_str(), v.as_str()))
                 .collect();
             tab.set_extra_http_headers(headers)
-                .map_err(|e| WebshotError::Browser(e.into()))?;
+                .map_err(WebshotError::Browser)?;
         }
 
         // Handle authentication
         if let Some(auth) = &config.auth {
             tab.authenticate(Some(auth.username.clone()), Some(auth.password.clone()))
-                .map_err(|e| WebshotError::Browser(e.into()))?;
+                .map_err(WebshotError::Browser)?;
         }
 
         // Navigate and process
@@ -521,7 +535,8 @@ impl Browser {
 
         // Wait for element
         if let Some(selector) = &config.wait_for {
-            self.wait_for_element(&tab, selector, config.timeout).await?;
+            self.wait_for_element(&tab, selector, config.timeout)
+                .await?;
         }
 
         // Wait before screenshot
@@ -554,7 +569,8 @@ impl Browser {
                     generate_tagged_pdf: Some(false),
                 };
 
-                let pdf_data = tab.print_to_pdf(Some(pdf_options))
+                let pdf_data = tab
+                    .print_to_pdf(Some(pdf_options))
                     .map_err(|e| WebshotError::pdf(e.to_string()))?;
                 std::fs::write(&output_path, pdf_data)?;
             }
