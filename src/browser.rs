@@ -70,7 +70,7 @@ impl Browser {
         };
 
         let browser = ChromeBrowser::new(launch_options)
-            .map_err(|e| WebshotError::BrowserLaunch(e.to_string()))?;
+            .map_err(|e| WebshotError::browser_launch(e.to_string()))?;
 
         debug!("Browser launched successfully");
 
@@ -97,11 +97,11 @@ impl Browser {
 
         info!("Navigating to: {}", url);
         tab.navigate_to(url)
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
 
         // Wait for page load
         tab.wait_until_navigated()
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
 
         // Execute custom JavaScript if provided
         if let Some(script) = &options.javascript {
@@ -173,9 +173,9 @@ impl Browser {
 
         info!("Navigating to: {}", url);
         tab.navigate_to(url)
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
         tab.wait_until_navigated()
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
 
         // Execute custom JavaScript if provided
         if let Some(script) = &javascript {
@@ -249,9 +249,9 @@ impl Browser {
 
         info!("Navigating to: {}", url);
         tab.navigate_to(url)
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
         tab.wait_until_navigated()
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
 
         // Execute custom JavaScript if provided
         if let Some(script) = &javascript {
@@ -272,11 +272,9 @@ impl Browser {
 
         let text = if let Some(selector_str) = selector {
             info!("Extracting text from element: {}", selector_str);
-            let element =
-                tab.find_element(&selector_str)
-                    .map_err(|_e| WebshotError::ElementNotFound {
-                        selector: selector_str,
-                    })?;
+            let element = tab
+                .find_element(&selector_str)
+                .map_err(|_e| WebshotError::element_not_found(selector_str))?;
             element.get_inner_text().map_err(WebshotError::Browser)?
         } else {
             info!("Extracting text from entire page");
@@ -395,11 +393,9 @@ impl Browser {
     ) -> Result<()> {
         let screenshot_data = if let Some(selector) = &options.selector {
             info!("Taking element screenshot: {}", selector);
-            let element =
-                tab.find_element(selector)
-                    .map_err(|_e| WebshotError::ElementNotFound {
-                        selector: selector.clone(),
-                    })?;
+            let element = tab
+                .find_element(selector)
+                .map_err(|_e| WebshotError::element_not_found(selector.clone()))?;
             element
                 .capture_screenshot(Page::CaptureScreenshotFormatOption::Png)
                 .map_err(|e| WebshotError::screenshot(e.to_string()))?
@@ -521,9 +517,9 @@ impl Browser {
 
         // Navigate and process
         tab.navigate_to(&config.url)
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
         tab.wait_until_navigated()
-            .map_err(|e| WebshotError::Navigation(e.to_string()))?;
+            .map_err(|e| WebshotError::navigation(e.to_string()))?;
 
         // Execute JavaScript
         if let Some(script) = &config.javascript {
