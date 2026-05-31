@@ -216,11 +216,11 @@ webshot https://localhost:3000 --chrome-flag="--disable-web-security"
 # Build
 cargo build
 
-# Run tests
+# Run deterministic tests
 cargo test
 
-# Integration tests (needs Chrome)
-cargo test --test integration
+# Browser/network integration tests are ignored by default and require Chrome or Chromium
+cargo test --test integration -- --ignored
 ```
 
 ## License
