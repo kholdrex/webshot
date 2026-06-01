@@ -46,7 +46,7 @@ pub enum WebshotError {
     #[error("Invalid file path: {path}")]
     InvalidPath { path: PathBuf },
 
-    #[error("Unsupported image format: {format}")]
+    #[error("Unsupported image format: {format}. Supported formats: png, jpg, jpeg, webp, pdf")]
     UnsupportedFormat { format: String },
 
     #[error("Timeout waiting for condition: {condition}")]
