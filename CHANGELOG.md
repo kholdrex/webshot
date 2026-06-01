@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- Validate batch YAML configuration files before starting Chrome, including invalid URLs and unsupported output filename extensions.
+- Accept `.webp` output paths in batch configuration validation, matching the existing screenshot format support.
+
+### Changed
+- Batch configuration now requires the output filename extension to be one of the supported runtime formats even when a `format` field is present, because screenshot output is written according to the filename extension.
+
 ## [0.2.0] - 2025-08-16
 
 ### Added

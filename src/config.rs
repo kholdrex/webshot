@@ -196,6 +196,8 @@ impl Config {
             }
         }
 
+        config.validate()?;
+
         Ok(config)
     }
 
@@ -246,27 +248,24 @@ impl Config {
                 )));
             }
 
-            // Validate output file extension if format is not specified
-            if screenshot.format.is_none() {
-                let extension = screenshot
-                    .output
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .map(|ext| ext.to_lowercase());
+            let extension = screenshot
+                .output
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext.to_lowercase());
 
-                match extension.as_deref() {
-                    Some("png") | Some("jpg") | Some("jpeg") | Some("pdf") => {}
-                    Some(ext) => {
-                        return Err(WebshotError::UnsupportedFormat {
-                            format: ext.to_string(),
-                        });
-                    }
-                    None => {
-                        return Err(WebshotError::config(format!(
-                            "Output file must have a valid extension: {}",
-                            screenshot.output.display()
-                        )));
-                    }
+            match extension.as_deref() {
+                Some("png") | Some("jpg") | Some("jpeg") | Some("webp") | Some("pdf") => {}
+                Some(ext) => {
+                    return Err(WebshotError::UnsupportedFormat {
+                        format: ext.to_string(),
+                    });
+                }
+                None => {
+                    return Err(WebshotError::config(format!(
+                        "Output file must have a supported extension: {}. Supported extensions: png, jpg, jpeg, webp, pdf",
+                        screenshot.output.display()
+                    )));
                 }
             }
         }
@@ -302,6 +301,29 @@ fn default_diff_color() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
+
+    fn valid_screenshot_config() -> ScreenshotConfig {
+        ScreenshotConfig {
+            url: "https://example.com".to_string(),
+            output: PathBuf::from("test.png"),
+            width: 1920,
+            height: 1080,
+            selector: None,
+            javascript: None,
+            wait_for: None,
+            timeout: 30,
+            retina: false,
+            quality: None,
+            wait: 0,
+            user_agent: None,
+            format: None,
+            headers: std::collections::HashMap::new(),
+            cookies: Vec::new(),
+            auth: None,
+            comparison: None,
+        }
+    }
 
     #[test]
     fn test_config_serialization() {
@@ -312,18 +334,7 @@ mod tests {
                 width: 1920,
                 height: 1080,
                 selector: Some(".header".to_string()),
-                javascript: None,
-                wait_for: None,
-                timeout: 30,
-                retina: false,
-                quality: None,
-                wait: 0,
-                user_agent: None,
-                format: None,
-                headers: std::collections::HashMap::new(),
-                cookies: Vec::new(),
-                auth: None,
-                comparison: None,
+                ..valid_screenshot_config()
             }],
             defaults: DefaultConfig::default(),
         };
@@ -338,25 +349,7 @@ mod tests {
     #[test]
     fn test_config_validation() {
         let mut config = Config {
-            screenshots: vec![ScreenshotConfig {
-                url: "https://example.com".to_string(),
-                output: PathBuf::from("test.png"),
-                width: 1920,
-                height: 1080,
-                selector: None,
-                javascript: None,
-                wait_for: None,
-                timeout: 30,
-                retina: false,
-                quality: None,
-                wait: 0,
-                user_agent: None,
-                format: None,
-                headers: std::collections::HashMap::new(),
-                cookies: Vec::new(),
-                auth: None,
-                comparison: None,
-            }],
+            screenshots: vec![valid_screenshot_config()],
             defaults: DefaultConfig::default(),
         };
 
@@ -370,5 +363,75 @@ mod tests {
         config.screenshots[0].url = "https://example.com".to_string();
         config.screenshots[0].width = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_accepts_webp_output() {
+        let mut screenshot = valid_screenshot_config();
+        screenshot.output = PathBuf::from("test.webp");
+
+        let config = Config {
+            screenshots: vec![screenshot],
+            defaults: DefaultConfig::default(),
+        };
+
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validation_rejects_unsupported_output_even_with_format_override() {
+        let mut screenshot = valid_screenshot_config();
+        screenshot.output = PathBuf::from("test.gif");
+        screenshot.format = Some("png".to_string());
+
+        let config = Config {
+            screenshots: vec![screenshot],
+            defaults: DefaultConfig::default(),
+        };
+
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_from_file_rejects_invalid_config_before_processing() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.yaml");
+        std::fs::write(
+            &config_path,
+            r#"
+screenshots:
+  - url: "not-a-url"
+    output: "test.png"
+"#,
+        )
+        .unwrap();
+
+        let error = Config::from_file(&config_path).unwrap_err();
+
+        assert!(error.to_string().contains("Invalid URL in screenshot 0"));
+    }
+
+    #[test]
+    fn test_from_file_applies_output_dir_before_validation() {
+        let temp_dir = TempDir::new().unwrap();
+        let config_path = temp_dir.path().join("config.yaml");
+        std::fs::write(
+            &config_path,
+            r#"
+defaults:
+  output_dir: "screenshots"
+screenshots:
+  - url: "https://example.com"
+    output: "test.png"
+"#,
+        )
+        .unwrap();
+
+        let config = Config::from_file(&config_path).unwrap();
+
+        assert_eq!(
+            config.screenshots[0].output,
+            PathBuf::from("screenshots").join("test.png")
+        );
     }
 }
