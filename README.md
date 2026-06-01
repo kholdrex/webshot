@@ -37,7 +37,7 @@ You'll need Chrome or Chromium installed. The tool will find it automatically.
 webshot https://example.com
 
 # Custom size and output
-webshot https://example.com -o screenshot.png -w 1920 -h 1080
+webshot https://example.com -o screenshot.png -w 1920 -H 1080
 
 # Screenshot just the header
 webshot https://github.com -s ".Header" -o header.png
@@ -58,7 +58,7 @@ webshot text https://example.com
 
 - `-o, --output` - Output file path
 - `-w, --width` - Viewport width (default: 1280)
-- `-h, --height` - Viewport height (default: 800)
+- `-H, --height` - Viewport height (default: 800)
 - `-s, --selector` - CSS selector for element screenshots
 - `-j, --javascript` - JavaScript to run before screenshot
 - `--wait-for` - Wait for element to appear
@@ -66,13 +66,14 @@ webshot text https://example.com
 - `--retina` - Enable high-DPI mode
 - `-q, --quality` - JPEG/WebP quality 1-100
 - `-v, --verbose` - Verbose logging
+- `-h, --help` - Show help (`-H` is used for viewport height)
 
 ### Subcommands
 
 #### `screenshot`
 Basic screenshot with full options:
 ```bash
-webshot screenshot https://example.com -o test.png -w 1920 -h 1080
+webshot screenshot https://example.com -o test.png -w 1920 -H 1080
 ```
 
 #### `pdf`
@@ -174,10 +175,10 @@ screenshots:
 ### Mobile Screenshots
 ```bash
 # iPhone viewport
-webshot https://example.com -w 390 -h 844 -o mobile.png
+webshot https://example.com -w 390 -H 844 -o mobile.png
 
 # iPad viewport  
-webshot https://example.com -w 820 -h 1180 -o tablet.png
+webshot https://example.com -w 820 -H 1180 -o tablet.png
 ```
 
 ### JavaScript Execution

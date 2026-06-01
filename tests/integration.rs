@@ -1,6 +1,6 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
-use std::fs;
+use std::{fs, path::Path};
 use tempfile::TempDir;
 
 const TEST_URL: &str = "https://httpbin.org/html";
@@ -233,7 +233,43 @@ async fn test_help_output() {
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("webshot"))
-        .stdout(predicate::str::contains("screenshot"));
+        .stdout(predicate::str::contains("screenshot"))
+        .stdout(predicate::str::contains("-H, --height"))
+        .stdout(predicate::str::contains("-h, --help"));
+}
+
+#[tokio::test]
+async fn test_screenshot_help_height_short_flag() {
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.args(["screenshot", "--help"]);
+
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("-H, --height"))
+        .stdout(predicate::str::contains("-h, --help"));
+}
+
+#[test]
+fn test_readme_uses_actual_height_short_flag() {
+    let readme_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md");
+    let readme = fs::read_to_string(readme_path).unwrap();
+
+    assert!(
+        !readme.contains("-h, --height"),
+        "README should document -H for --height because -h is clap help"
+    );
+    assert!(
+        readme.contains("-H, --height"),
+        "README should document the actual short flag for --height"
+    );
+    assert!(
+        readme.contains("webshot https://example.com -o screenshot.png -w 1920 -H 1080"),
+        "README quick-start example should use -H for viewport height"
+    );
+    assert!(
+        readme.contains("webshot screenshot https://example.com -o test.png -w 1920 -H 1080"),
+        "README screenshot subcommand example should use -H for viewport height"
+    );
 }
 
 #[tokio::test]
