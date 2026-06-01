@@ -224,6 +224,29 @@ cargo test
 cargo test --test integration -- --ignored
 ```
 
+### CI and release flow
+
+GitHub Actions runs the `Rust CI` workflow for pushes to `master` or `main`, for
+`pull_request` events targeting `master` or `main`, and for pushed tags matching `v*`.
+Pull requests run only the `Test` job; releases are triggered only by `v*` tags.
+
+The `Test` job checks out the repository, installs the stable Rust toolchain,
+uses the Cargo cache, runs `cargo test --verbose --all-features`, builds with
+`cargo build --release --verbose`, and uploads the release binary artifact from
+`target/release/webshot` as `webshot-binary` for seven days.
+
+To publish a release, create and push a version tag such as `v0.2.1`:
+
+```bash
+git tag v0.2.1
+git push origin v0.2.1
+```
+
+Pushing a `v*` tag first runs the `Test` job. If it succeeds, the `Create Release` job
+builds `target/release/webshot` again and publishes a GitHub Release with
+generated release notes (`generate_release_notes: true`) via
+`softprops/action-gh-release@v1`.
+
 ## License
 
 MIT License - see LICENSE file for details.
