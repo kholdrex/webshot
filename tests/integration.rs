@@ -272,6 +272,161 @@ fn test_readme_uses_actual_height_short_flag() {
     );
 }
 
+#[test]
+fn test_readme_release_flow_matches_github_actions() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let readme = fs::read_to_string(manifest_dir.join("README.md"))
+        .expect("README.md must exist for release-flow doc test");
+    let workflow = fs::read_to_string(manifest_dir.join(".github/workflows/rust.yml"))
+        .expect(".github/workflows/rust.yml must exist for release-flow doc test");
+    let workflow_yaml: serde_yaml::Value =
+        serde_yaml::from_str(&workflow).expect("rust.yml must be valid YAML");
+
+    let workflow_name = workflow_yaml["name"]
+        .as_str()
+        .expect("workflow should have a name");
+    let triggers = &workflow_yaml["on"];
+    let jobs = &workflow_yaml["jobs"];
+    let test_job = &jobs["test"];
+    let release_job = &jobs["release"];
+
+    assert_eq!(workflow_name, "Rust CI");
+    assert_eq!(test_job["name"].as_str(), Some("Test"));
+    assert_eq!(release_job["name"].as_str(), Some("Create Release"));
+    assert_eq!(release_job["needs"].as_str(), Some("test"));
+    assert_eq!(
+        release_job["if"].as_str(),
+        Some("startsWith(github.ref, 'refs/tags/')")
+    );
+
+    for branch in ["master", "main"] {
+        assert!(
+            yaml_sequence_contains(&triggers["push"]["branches"], branch),
+            "push trigger should include {branch}"
+        );
+        assert!(
+            yaml_sequence_contains(&triggers["pull_request"]["branches"], branch),
+            "pull_request trigger should include {branch}"
+        );
+    }
+    assert!(
+        yaml_sequence_contains(&triggers["push"]["tags"], "v*"),
+        "push trigger should include v* tags"
+    );
+
+    assert!(
+        job_has_run_step(test_job, "cargo test --verbose --all-features"),
+        "Test job should run the documented test command"
+    );
+    assert!(
+        job_has_run_step(test_job, "cargo build --release --verbose"),
+        "Test job should build the release binary before artifact upload"
+    );
+    assert!(
+        job_uses_action(test_job, "actions/upload-artifact@v4"),
+        "Test job should upload the release binary artifact"
+    );
+    assert_eq!(
+        find_action_step(test_job, "actions/upload-artifact@v4")["with"]["name"].as_str(),
+        Some("webshot-binary")
+    );
+    assert_eq!(
+        find_action_step(test_job, "actions/upload-artifact@v4")["with"]["path"].as_str(),
+        Some("target/release/webshot")
+    );
+    assert_eq!(
+        find_action_step(test_job, "actions/upload-artifact@v4")["with"]["retention-days"].as_i64(),
+        Some(7)
+    );
+
+    assert!(
+        job_has_run_step(release_job, "cargo build --release --verbose"),
+        "Create Release job should rebuild the release binary after Test succeeds"
+    );
+    assert!(
+        job_uses_action(release_job, "softprops/action-gh-release@v1"),
+        "Create Release job should publish through the documented release action"
+    );
+    assert_eq!(
+        find_action_step(release_job, "softprops/action-gh-release@v1")["with"]["files"].as_str(),
+        Some("target/release/webshot")
+    );
+    assert_eq!(
+        find_action_step(release_job, "softprops/action-gh-release@v1")["with"]
+            ["generate_release_notes"]
+            .as_bool(),
+        Some(true)
+    );
+
+    let documented_details = [
+        ("workflow name", "`Rust CI` workflow"),
+        ("push branches", "pushes to `master` or `main`"),
+        (
+            "pull request target branches",
+            "`pull_request` events targeting `master` or `main`",
+        ),
+        ("tag release trigger", "pushed tags matching `v*`"),
+        (
+            "pull request job scope",
+            "Pull requests run only the `Test` job",
+        ),
+        (
+            "release job tag scope",
+            "releases are triggered only by `v*` tags",
+        ),
+        ("test command", "`cargo test --verbose --all-features`"),
+        ("release build command", "`cargo build --release --verbose`"),
+        ("release binary path", "`target/release/webshot`"),
+        ("artifact name", "`webshot-binary`"),
+        ("artifact retention", "for seven days"),
+        (
+            "test dependency",
+            "If it succeeds, the `Create Release` job",
+        ),
+        ("release action", "`softprops/action-gh-release@v1`"),
+        ("generated release notes", "`generate_release_notes: true`"),
+    ];
+
+    for (description, detail) in documented_details {
+        assert!(
+            readme.contains(detail),
+            "README release flow should document {description}: {detail}"
+        );
+    }
+}
+
+fn yaml_sequence_contains(value: &serde_yaml::Value, expected: &str) -> bool {
+    value
+        .as_sequence()
+        .map(|items| items.iter().any(|item| item.as_str() == Some(expected)))
+        .unwrap_or(false)
+}
+
+fn job_steps(job: &serde_yaml::Value) -> &[serde_yaml::Value] {
+    job["steps"]
+        .as_sequence()
+        .expect("workflow job should define steps")
+}
+
+fn job_has_run_step(job: &serde_yaml::Value, expected: &str) -> bool {
+    job_steps(job)
+        .iter()
+        .any(|step| step["run"].as_str() == Some(expected))
+}
+
+fn job_uses_action(job: &serde_yaml::Value, action: &str) -> bool {
+    job_steps(job)
+        .iter()
+        .any(|step| step["uses"].as_str() == Some(action))
+}
+
+fn find_action_step<'a>(job: &'a serde_yaml::Value, action: &str) -> &'a serde_yaml::Value {
+    job_steps(job)
+        .iter()
+        .find(|step| step["uses"].as_str() == Some(action))
+        .expect("workflow job should include documented action step")
+}
+
 #[tokio::test]
 async fn test_version_output() {
     let mut cmd = Command::cargo_bin("webshot").unwrap();
