@@ -1,4 +1,4 @@
-use crate::config::{Config, ScreenshotConfig};
+use crate::config::{validate_navigation_url, Config, ScreenshotConfig};
 use crate::error::{Result, WebshotError};
 use crate::screenshot::{ImageFormat, ScreenshotOptions};
 use headless_chrome::protocol::cdp::Page;
@@ -87,6 +87,7 @@ impl Browser {
         output_path: P,
         options: &ScreenshotOptions,
     ) -> Result<()> {
+        validate_navigation_url(url, "screenshot API")?;
         options.validate()?;
 
         let tab = self
@@ -160,6 +161,7 @@ impl Browser {
         timeout: u64,
         user_agent: Option<String>,
     ) -> Result<()> {
+        validate_navigation_url(url, "pdf API")?;
         let tab = self
             .browser
             .new_tab()
@@ -236,6 +238,7 @@ impl Browser {
         timeout: u64,
         user_agent: Option<String>,
     ) -> Result<String> {
+        validate_navigation_url(url, "text API")?;
         let tab = self
             .browser
             .new_tab()
@@ -442,6 +445,7 @@ impl Browser {
         config: ScreenshotConfig,
         output_dir: Option<PathBuf>,
     ) -> Result<()> {
+        validate_navigation_url(&config.url, "batch screenshot API")?;
         let tab = self
             .browser
             .new_tab()

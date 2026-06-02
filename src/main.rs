@@ -2,7 +2,10 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use webshot::{Browser, ComparisonOptions, Config, ImageComparator, Result, ScreenshotOptions};
+use webshot::{
+    config::validate_navigation_url, Browser, ComparisonOptions, Config, ImageComparator, Result,
+    ScreenshotOptions,
+};
 
 #[derive(Parser)]
 #[command(
@@ -16,7 +19,7 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    /// URL to screenshot (if no subcommand provided)
+    /// HTTP(S) URL to screenshot (if no subcommand provided)
     #[arg(value_name = "URL")]
     url: Option<String>,
 
@@ -86,7 +89,7 @@ enum Commands {
     /// Take a single screenshot
     #[command(alias = "shot")]
     Screenshot {
-        /// URL to screenshot
+        /// HTTP(S) URL to screenshot
         url: String,
         /// Output file path
         #[arg(short, long)]
@@ -121,7 +124,7 @@ enum Commands {
     },
     /// Generate PDF from webpage
     Pdf {
-        /// URL to convert to PDF
+        /// HTTP(S) URL to convert to PDF
         url: String,
         /// Output PDF file path
         #[arg(short, long)]
@@ -161,7 +164,7 @@ enum Commands {
     },
     /// Extract text content from webpage
     Text {
-        /// URL to extract text from
+        /// HTTP(S) URL to extract text from
         url: String,
         /// CSS selector for specific element
         #[arg(short, long)]
@@ -416,6 +419,7 @@ async fn take_screenshot(
     no_javascript: bool,
     user_agent: Option<String>,
 ) -> Result<()> {
+    validate_navigation_url(url, "screenshot command")?;
     info!("Taking screenshot of: {}", url);
 
     let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
@@ -479,6 +483,7 @@ async fn generate_pdf(
     no_javascript: bool,
     user_agent: Option<String>,
 ) -> Result<()> {
+    validate_navigation_url(url, "pdf command")?;
     info!("Generating PDF of: {}", url);
 
     let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
@@ -543,6 +548,7 @@ async fn extract_text(
     no_javascript: bool,
     user_agent: Option<String>,
 ) -> Result<()> {
+    validate_navigation_url(url, "text command")?;
     info!("Extracting text from: {}", url);
 
     let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
