@@ -249,6 +249,22 @@ async fn test_screenshot_help_height_short_flag() {
         .stdout(predicate::str::contains("-h, --help"));
 }
 
+#[tokio::test]
+async fn test_cli_rejects_non_web_url_before_browser_startup() {
+    for args in [
+        vec!["screenshot", "file:///etc/passwd"],
+        vec!["pdf", "file:///etc/passwd"],
+        vec!["text", "data:text/html,<h1>Test</h1>"],
+    ] {
+        let mut cmd = Command::cargo_bin("webshot").unwrap();
+        cmd.args(args);
+
+        cmd.assert()
+            .failure()
+            .stderr(predicate::str::contains("Unsupported URL scheme"));
+    }
+}
+
 #[test]
 fn test_readme_uses_actual_height_short_flag() {
     let readme_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md");

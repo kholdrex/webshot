@@ -2,6 +2,26 @@ use crate::error::{Result, WebshotError};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// Validate that a navigation target is a syntactically valid HTTP(S) URL.
+///
+/// This is a scheme allowlist, not a full network safety check. CLI callers
+/// intentionally validate before browser startup while browser APIs validate
+/// again at the navigation boundary for defense in depth.
+pub fn validate_navigation_url(url: &str, context: impl AsRef<str>) -> Result<()> {
+    let parsed_url = url::Url::parse(url).map_err(|error| {
+        WebshotError::config(format!("Invalid URL in {}: {}", context.as_ref(), error))
+    })?;
+
+    match parsed_url.scheme() {
+        "http" | "https" => Ok(()),
+        scheme => Err(WebshotError::config(format!(
+            "Unsupported URL scheme in {}: {}. Supported schemes: http, https",
+            context.as_ref(),
+            scheme
+        ))),
+    }
+}
+
 /// Batch processing configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -217,10 +237,7 @@ impl Config {
         }
 
         for (i, screenshot) in self.screenshots.iter().enumerate() {
-            // Validate URL
-            url::Url::parse(&screenshot.url).map_err(|e| {
-                WebshotError::config(format!("Invalid URL in screenshot {}: {}", i, e))
-            })?;
+            validate_navigation_url(&screenshot.url, format!("screenshot {}", i))?;
 
             // Validate viewport dimensions
             if screenshot.width == 0 || screenshot.height == 0 {
@@ -363,6 +380,42 @@ mod tests {
         config.screenshots[0].url = "https://example.com".to_string();
         config.screenshots[0].width = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validation_rejects_non_web_url_schemes() {
+        for url in [
+            "file:///etc/passwd",
+            "data:text/html,<h1>Test</h1>",
+            "javascript:alert(1)",
+            "chrome://settings",
+            "ftp://example.com/file.png",
+        ] {
+            let mut screenshot = valid_screenshot_config();
+            screenshot.url = url.to_string();
+
+            let config = Config {
+                screenshots: vec![screenshot],
+                defaults: DefaultConfig::default(),
+            };
+
+            let error = config.validate().unwrap_err();
+
+            assert!(error.to_string().contains("Unsupported URL scheme"));
+        }
+    }
+
+    #[test]
+    fn test_config_validation_accepts_case_insensitive_web_url_schemes() {
+        let mut screenshot = valid_screenshot_config();
+        screenshot.url = "HTTPS://example.com".to_string();
+
+        let config = Config {
+            screenshots: vec![screenshot],
+            defaults: DefaultConfig::default(),
+        };
+
+        assert!(config.validate().is_ok());
     }
 
     #[test]
