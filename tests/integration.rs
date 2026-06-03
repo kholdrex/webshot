@@ -657,7 +657,7 @@ async fn test_compare_json_output() {
     let temp_dir = TempDir::new().unwrap();
     let img1_path = temp_dir.path().join("img1.png");
     let img2_path = temp_dir.path().join("img2.png");
-    let output_path = temp_dir.path().join("results.json");
+    let output_path = temp_dir.path().join("reports").join("results.json");
 
     // Create two different images
     create_test_image(50, 50, [255, 0, 0], &img1_path);
@@ -859,7 +859,7 @@ async fn test_compare_invalid_algorithm() {
 }
 
 #[tokio::test]
-async fn test_compare_text_output_format() {
+async fn test_compare_text_stdout_output_format() {
     let temp_dir = TempDir::new().unwrap();
     let img1_path = temp_dir.path().join("img1.png");
     let img2_path = temp_dir.path().join("img2.png");
@@ -880,4 +880,32 @@ async fn test_compare_text_output_format() {
         .stdout(predicate::str::contains("Algorithm:"))
         .stdout(predicate::str::contains("Similarity:"))
         .stdout(predicate::str::contains("Similar:"));
+}
+
+#[tokio::test]
+async fn test_compare_text_output_format() {
+    let temp_dir = TempDir::new().unwrap();
+    let img1_path = temp_dir.path().join("img1.png");
+    let img2_path = temp_dir.path().join("img2.png");
+    let output_path = temp_dir.path().join("reports").join("results.txt");
+
+    create_test_image(50, 50, [255, 0, 0], &img1_path);
+    create_test_image(50, 50, [0, 255, 0], &img2_path);
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("compare")
+        .arg(&img1_path)
+        .arg(&img2_path)
+        .arg("--format")
+        .arg("text")
+        .arg("-o")
+        .arg(&output_path);
+
+    cmd.assert().code(1);
+
+    let text_output = fs::read_to_string(&output_path).unwrap();
+    assert!(text_output.contains("Image Comparison Results"));
+    assert!(text_output.contains("Algorithm:"));
+    assert!(text_output.contains("Similarity:"));
+    assert!(text_output.contains("Similar:"));
 }

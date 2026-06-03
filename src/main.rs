@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use webshot::{
-    config::validate_navigation_url, Browser, ComparisonOptions, Config, ImageComparator, Result,
-    ScreenshotOptions,
+    config::validate_navigation_url, output::OutputHandler, Browser, ComparisonOptions, Config,
+    ImageComparator, Result, ScreenshotOptions,
 };
 
 #[derive(Parser)]
@@ -559,6 +559,7 @@ async fn extract_text(
 
     match output {
         Some(path) => {
+            OutputHandler::ensure_output_dir(&path)?;
             std::fs::write(&path, &text)?;
             println!("Text saved to: {}", path.display());
         }
@@ -645,6 +646,7 @@ async fn compare_images(
             })?;
 
             if let Some(output_path) = output {
+                OutputHandler::ensure_output_dir(&output_path)?;
                 std::fs::write(output_path, json)?;
                 info!("Comparison results saved to JSON file");
             } else {
@@ -655,6 +657,7 @@ async fn compare_images(
             let text_output = format_comparison_result(&result);
 
             if let Some(output_path) = output {
+                OutputHandler::ensure_output_dir(&output_path)?;
                 std::fs::write(output_path, text_output)?;
                 info!("Comparison results saved to text file");
             } else {
