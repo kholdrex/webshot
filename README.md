@@ -155,7 +155,7 @@ screenshots:
 
 ### Configuration Options
 
-- `url` - Target URL (required)
+- `url` - Target HTTP(S) URL (required)
 - `output` - Output file path (required)
 - `width`, `height` - Viewport dimensions
 - `selector` - CSS selector for element screenshots
@@ -169,6 +169,15 @@ screenshots:
 - `headers` - Custom HTTP headers
 - `cookies` - Cookies to set
 - `auth` - Basic authentication (username/password)
+
+#### Output Behavior
+
+- Supported output extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.pdf`.
+- Webshot chooses the runtime output format from the `output` filename extension.
+- Relative screenshot `output` paths are resolved under `defaults.output_dir` when it is set.
+- The `multi` command's `-o, --output-dir` option is prepended at runtime to each loaded output path, including any `defaults.output_dir` component already applied during config loading. For example, `defaults.output_dir: "screenshots"`, `output: "home.png"`, and `webshot multi config.yaml -o artifacts` writes `artifacts/screenshots/home.png`.
+- Parent directories for screenshot, PDF, text, diff-image, and JSON comparison outputs are created automatically.
+- Existing output files are replaced when a command writes the same path.
 
 ## Examples
 

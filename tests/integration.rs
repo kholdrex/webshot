@@ -289,6 +289,29 @@ fn test_readme_uses_actual_height_short_flag() {
 }
 
 #[test]
+fn test_readme_documents_batch_output_behavior() {
+    let readme_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md");
+    let readme = fs::read_to_string(readme_path).unwrap();
+
+    for detail in [
+        "#### Output Behavior",
+        "Target HTTP(S) URL (required)",
+        "Supported output extensions are `.png`, `.jpg`, `.jpeg`, `.webp`, and `.pdf`.",
+        "Webshot chooses the runtime output format from the `output` filename extension.",
+        "Relative screenshot `output` paths are resolved under `defaults.output_dir` when it is set.",
+        "The `multi` command's `-o, --output-dir` option is prepended at runtime to each loaded output path",
+        "artifacts/screenshots/home.png",
+        "Parent directories for screenshot, PDF, text, diff-image, and JSON comparison outputs are created automatically.",
+        "Existing output files are replaced when a command writes the same path.",
+    ] {
+        assert!(
+            readme.contains(detail),
+            "README should document batch/output behavior detail: {detail}"
+        );
+    }
+}
+
+#[test]
 fn test_readme_release_flow_matches_github_actions() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let readme = fs::read_to_string(manifest_dir.join("README.md"))
