@@ -310,6 +310,12 @@ mod tests {
         assert!(!test_path.parent().unwrap().exists());
         OutputHandler::ensure_output_dir(&test_path).unwrap();
         assert!(test_path.parent().unwrap().exists());
+        assert!(!test_path.exists());
+    }
+
+    #[test]
+    fn test_ensure_output_dir_allows_current_directory_output() {
+        OutputHandler::ensure_output_dir("screenshot.png").unwrap();
     }
 
     #[test]

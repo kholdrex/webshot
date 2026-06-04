@@ -1,4 +1,5 @@
 use crate::error::{Result, WebshotError};
+use crate::output::OutputHandler;
 use image::{DynamicImage, ImageBuffer, Rgb, RgbImage};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -366,6 +367,8 @@ impl ImageComparator {
             }
         }
 
+        OutputHandler::ensure_output_dir(&output_path)?;
+
         diff_img
             .save(&output_path)
             .map_err(|e| WebshotError::config(format!("Failed to save diff image: {}", e)))?;
@@ -484,7 +487,7 @@ mod tests {
     #[test]
     fn test_diff_image_generation() {
         let temp_dir = TempDir::new().unwrap();
-        let diff_path = temp_dir.path().join("diff.png");
+        let diff_path = temp_dir.path().join("nested").join("diff.png");
 
         let img1 = create_test_image(10, 10, [255, 0, 0]);
         let img2 = create_test_image(10, 10, [0, 255, 0]);

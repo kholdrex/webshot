@@ -1,5 +1,6 @@
 use crate::config::{validate_navigation_url, Config, ScreenshotConfig};
 use crate::error::{Result, WebshotError};
+use crate::output::OutputHandler;
 use crate::screenshot::{ImageFormat, ScreenshotOptions};
 use headless_chrome::protocol::cdp::Page;
 use headless_chrome::types::PrintToPdfOptions;
@@ -222,6 +223,7 @@ impl Browser {
         let pdf_data = tab
             .print_to_pdf(Some(pdf_options))
             .map_err(|e| WebshotError::pdf(e.to_string()))?;
+        OutputHandler::ensure_output_dir(&output_path)?;
         std::fs::write(&output_path, pdf_data)?;
 
         info!("PDF saved to: {}", output_path.as_ref().display());
@@ -408,6 +410,8 @@ impl Browser {
                 .map_err(|e| WebshotError::screenshot(e.to_string()))?
         };
 
+        OutputHandler::ensure_output_dir(&output_path)?;
+
         match format {
             ImageFormat::Png => {
                 std::fs::write(&output_path, screenshot_data)?;
@@ -458,10 +462,7 @@ impl Browser {
             config.output.clone()
         };
 
-        // Create parent directories if they don't exist
-        if let Some(parent) = output_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        OutputHandler::ensure_output_dir(&output_path)?;
 
         let options = ScreenshotOptions {
             width: config.width,
