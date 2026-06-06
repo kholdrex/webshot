@@ -10,6 +10,13 @@ impl OutputHandler {
     /// Ensure the output directory exists
     pub fn ensure_output_dir<P: AsRef<Path>>(path: P) -> Result<()> {
         if let Some(parent) = path.as_ref().parent() {
+            if parent.exists() && !parent.is_dir() {
+                return Err(WebshotError::config(format!(
+                    "Output parent path is not a directory: {}",
+                    parent.display()
+                )));
+            }
+
             if !parent.exists() {
                 info!("Creating output directory: {}", parent.display());
                 std::fs::create_dir_all(parent)?;
@@ -314,8 +321,74 @@ mod tests {
     }
 
     #[test]
+    fn test_ensure_output_dir_creates_nested_parent_directories() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir
+            .path()
+            .join("level-one")
+            .join("level-two")
+            .join("level-three")
+            .join("screenshot.png");
+
+        OutputHandler::ensure_output_dir(&output_path).unwrap();
+
+        assert!(output_path.parent().unwrap().is_dir());
+        assert!(!output_path.exists());
+    }
+
+    #[test]
+    fn test_ensure_output_dir_keeps_existing_file_untouched() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("existing").join("screenshot.png");
+        std::fs::create_dir(output_path.parent().unwrap()).unwrap();
+        std::fs::write(&output_path, b"original").unwrap();
+
+        OutputHandler::ensure_output_dir(&output_path).unwrap();
+
+        assert_eq!(std::fs::read(&output_path).unwrap(), b"original");
+    }
+
+    #[test]
+    fn test_ensure_output_dir_errors_when_parent_component_is_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_parent = temp_dir.path().join("not-a-directory");
+        let output_path = file_parent.join("screenshot.png");
+        std::fs::write(&file_parent, b"not a directory").unwrap();
+
+        assert!(OutputHandler::ensure_output_dir(&output_path).is_err());
+    }
+
+    #[test]
     fn test_ensure_output_dir_allows_current_directory_output() {
         OutputHandler::ensure_output_dir("screenshot.png").unwrap();
+    }
+
+    #[test]
+    fn test_handle_existing_file_allows_missing_file_without_overwrite() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("missing.png");
+
+        OutputHandler::handle_existing_file(&output_path, false).unwrap();
+    }
+
+    #[test]
+    fn test_handle_existing_file_rejects_existing_file_without_overwrite() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("existing.png");
+        std::fs::write(&output_path, b"existing").unwrap();
+
+        let error = OutputHandler::handle_existing_file(&output_path, false).unwrap_err();
+
+        assert!(error.to_string().contains("Use --force to overwrite"));
+    }
+
+    #[test]
+    fn test_handle_existing_file_allows_existing_file_with_overwrite() {
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("existing.png");
+        std::fs::write(&output_path, b"existing").unwrap();
+
+        OutputHandler::handle_existing_file(&output_path, true).unwrap();
     }
 
     #[test]

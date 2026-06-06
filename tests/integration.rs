@@ -676,13 +676,16 @@ async fn test_compare_with_diff_image() {
 }
 
 #[tokio::test]
-async fn test_compare_json_output() {
+async fn test_compare_json_output_creates_parent_dirs_and_overwrites() {
     let temp_dir = TempDir::new().unwrap();
     let img1_path = temp_dir.path().join("img1.png");
     let img2_path = temp_dir.path().join("img2.png");
-    let output_path = temp_dir.path().join("reports").join("results.json");
+    let output_path = temp_dir
+        .path()
+        .join("reports")
+        .join("nested")
+        .join("results.json");
 
-    // Create two different images
     create_test_image(50, 50, [255, 0, 0], &img1_path);
     create_test_image(50, 50, [0, 255, 0], &img2_path);
 
@@ -696,18 +699,120 @@ async fn test_compare_json_output() {
         .arg(&output_path);
 
     cmd.assert().code(1);
+    assert_json_comparison_output(&output_path);
 
-    // Check that JSON output was created
-    assert!(output_path.exists());
+    fs::write(&output_path, "stale output").unwrap();
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("compare")
+        .arg(&img1_path)
+        .arg(&img2_path)
+        .arg("--format")
+        .arg("json")
+        .arg("-o")
+        .arg(&output_path);
+
+    cmd.assert().code(1);
     let content = fs::read_to_string(&output_path).unwrap();
+    assert!(!content.contains("stale output"));
+    assert_json_comparison_output(&output_path);
+}
 
-    // Parse and validate JSON structure
+fn assert_json_comparison_output(output_path: &Path) {
+    assert!(output_path.exists());
+    let content = fs::read_to_string(output_path).unwrap();
     let json: serde_json::Value = serde_json::from_str(&content).unwrap();
+
     assert!(json["similar"].is_boolean());
     assert!(json["similarity"].is_number());
     assert!(json["algorithm"].is_string());
     assert!(json["threshold"].is_number());
     assert!(json["total_pixels"].is_number());
+}
+
+#[tokio::test]
+async fn test_compare_text_output_creates_parent_dirs_and_overwrites() {
+    let temp_dir = TempDir::new().unwrap();
+    let img1_path = temp_dir.path().join("img1.png");
+    let img2_path = temp_dir.path().join("img2.png");
+    let output_path = temp_dir
+        .path()
+        .join("reports")
+        .join("nested")
+        .join("results.txt");
+
+    create_test_image(50, 50, [255, 0, 0], &img1_path);
+    create_test_image(50, 50, [255, 0, 0], &img2_path);
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("compare")
+        .arg(&img1_path)
+        .arg(&img2_path)
+        .arg("-o")
+        .arg(&output_path);
+
+    cmd.assert().code(0);
+    assert!(output_path.exists());
+    assert!(fs::read_to_string(&output_path)
+        .unwrap()
+        .contains("Similar: YES"));
+
+    fs::write(&output_path, "stale output").unwrap();
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("compare")
+        .arg(&img1_path)
+        .arg(&img2_path)
+        .arg("-o")
+        .arg(&output_path);
+
+    cmd.assert().code(0);
+    let content = fs::read_to_string(&output_path).unwrap();
+    assert!(content.contains("Image Comparison Results"));
+    assert!(!content.contains("stale output"));
+}
+
+#[tokio::test]
+async fn test_compare_diff_image_creates_parent_dirs_and_overwrites() {
+    let temp_dir = TempDir::new().unwrap();
+    let img1_path = temp_dir.path().join("img1.png");
+    let img2_path = temp_dir.path().join("img2.png");
+    let diff_path = temp_dir
+        .path()
+        .join("diffs")
+        .join("nested")
+        .join("diff.png");
+
+    create_test_image(50, 50, [255, 0, 0], &img1_path);
+    create_test_image(50, 50, [0, 255, 0], &img2_path);
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("compare")
+        .arg(&img1_path)
+        .arg(&img2_path)
+        .arg("--diff-image")
+        .arg("--diff-path")
+        .arg(&diff_path);
+
+    cmd.assert().code(1);
+    assert!(diff_path.exists());
+    assert!(image::open(&diff_path).is_ok());
+
+    fs::write(&diff_path, "stale output").unwrap();
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("compare")
+        .arg(&img1_path)
+        .arg(&img2_path)
+        .arg("--diff-image")
+        .arg("--diff-path")
+        .arg(&diff_path);
+
+    cmd.assert().code(1);
+    let diff_image = image::open(&diff_path).unwrap();
+    assert_eq!(diff_image.width(), 50);
+    assert_eq!(diff_image.height(), 50);
+    assert_ne!(fs::read(&diff_path).unwrap(), b"stale output");
 }
 
 #[tokio::test]
