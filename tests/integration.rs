@@ -131,6 +131,75 @@ screenshots:
 
 #[tokio::test]
 #[ignore = "requires Chrome/Chromium and network access"]
+async fn test_multi_output_dir_prepends_defaults_output_dir_and_overwrites() {
+    let temp_dir = TempDir::new().unwrap();
+    let config_content = format!(
+        r#"
+defaults:
+  output_dir: "defaults/nested"
+screenshots:
+  - url: "{}"
+    output: "page.png"
+    width: 800
+    height: 600
+"#,
+        TEST_URL
+    );
+
+    let config_path = temp_dir.path().join("config.yaml");
+    let artifacts_dir = temp_dir.path().join("artifacts");
+    let expected_output = artifacts_dir
+        .join("defaults")
+        .join("nested")
+        .join("page.png");
+    fs::write(&config_path, config_content).unwrap();
+
+    run_multi_output_dir_command(&config_path, &artifacts_dir);
+
+    assert_png_file(&expected_output);
+    assert_no_alternate_outputs(temp_dir.path(), &artifacts_dir);
+
+    fs::write(&expected_output, b"stale output").unwrap();
+
+    run_multi_output_dir_command(&config_path, &artifacts_dir);
+
+    let second_output = assert_png_file(&expected_output);
+    assert_ne!(second_output, b"stale output");
+    assert_no_alternate_outputs(temp_dir.path(), &artifacts_dir);
+}
+
+fn run_multi_output_dir_command(config_path: &Path, artifacts_dir: &Path) {
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    // Keep relative paths in the YAML rooted in the test temp directory.
+    cmd.current_dir(config_path.parent().unwrap())
+        .arg("multi")
+        .arg(config_path)
+        .arg("-o")
+        .arg(artifacts_dir)
+        .arg("-p")
+        .arg("1");
+
+    cmd.assert().success();
+}
+
+fn assert_no_alternate_outputs(temp_dir: &Path, artifacts_dir: &Path) {
+    assert!(!temp_dir
+        .join("defaults")
+        .join("nested")
+        .join("page.png")
+        .exists());
+    assert!(!artifacts_dir.join("page.png").exists());
+}
+
+fn assert_png_file(path: &Path) -> Vec<u8> {
+    let content = fs::read(path).unwrap();
+    assert!(content.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]));
+    assert!(content.len() > 8);
+    content
+}
+
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
 async fn test_jpeg_quality() {
     let temp_dir = TempDir::new().unwrap();
     let output_path = temp_dir.path().join("quality.jpg");
