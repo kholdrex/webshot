@@ -11,4 +11,4 @@ pub use error::{Result, WebshotError};
 pub use browser::Browser;
 pub use comparison::{ComparisonOptions, ComparisonResult, ImageComparator};
 pub use config::{Config, ScreenshotConfig};
-pub use screenshot::ScreenshotOptions;
+pub use screenshot::{ScreenshotOptions, ScrollMode};

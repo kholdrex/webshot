@@ -4,9 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-23
+
+### Added
+- Scrolling screenshot capture with three modes selectable per screenshot or as a default:
+  - `Viewport` (default) captures the visible viewport only.
+  - `FullPage` scrolls the page, capturing and stitching the full content height.
+  - `FullElement` scrolls within a selected element and stitches its full content.
+- New `screenshot` CLI flags: `--full-page`, `--max-height`, and `--scroll-delay`.
+- New configuration fields (`scroll_mode`, `max_height`, `scroll_delay`) for both per-screenshot entries and global defaults, with merging from defaults.
+- `examples/scrolling-config.yaml` demonstrating the scrolling features.
+
 ### Fixed
 - Validate batch YAML configuration files before starting Chrome, including invalid URLs and unsupported output filename extensions.
 - Accept `.webp` output paths in batch configuration validation, matching the existing screenshot format support.
+- Create missing parent directories for screenshot output paths.
+- Restrict navigation to supported URL schemes.
 
 ### Changed
 - Batch configuration now requires the output filename extension to be one of the supported runtime formats even when a `format` field is present, because screenshot output is written according to the filename extension.

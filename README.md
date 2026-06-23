@@ -5,6 +5,7 @@ A fast command-line tool for taking website screenshots, built in Rust.
 ## Features
 
 - Take full-page or element-specific screenshots
+- **Scrolling screenshots** - capture content beyond viewport
 - Generate PDFs from web pages
 - Execute JavaScript before capturing
 - Batch processing with YAML configs
@@ -50,6 +51,9 @@ webshot https://example.com -o screenshot.webp
 
 # Extract text content
 webshot text https://example.com
+
+# Full page scrolling screenshot
+webshot https://example.com --full-page --max-height 50000 -o fullpage.png
 ```
 
 ## Usage
@@ -66,6 +70,9 @@ webshot text https://example.com
 - `--retina` - Enable high-DPI mode
 - `-q, --quality` - JPEG/WebP quality 1-100
 - `-v, --verbose` - Verbose logging
+- `--full-page` - Enable full page scrolling screenshot
+- `--max-height` - Maximum height for full page screenshots (pixels)
+- `--scroll-delay` - Scroll delay between captures (milliseconds)
 - `-h, --help` - Show help (`-H` is used for viewport height)
 
 ### Subcommands
@@ -169,6 +176,9 @@ screenshots:
 - `headers` - Custom HTTP headers
 - `cookies` - Cookies to set
 - `auth` - Basic authentication (username/password)
+- `scroll_mode` - Scrolling mode: "Viewport", "FullPage", or "FullElement"
+- `max_height` - Maximum height for full page screenshots (pixels)
+- `scroll_delay` - Scroll delay between captures (milliseconds)
 
 #### Output Behavior
 
@@ -188,6 +198,21 @@ webshot https://example.com -w 390 -H 844 -o mobile.png
 
 # iPad viewport  
 webshot https://example.com -w 820 -H 1180 -o tablet.png
+```
+
+### Scrolling Screenshots
+```bash
+# Full page scrolling screenshot
+webshot https://github.com/features --full-page --max-height 50000 -o features.png
+
+# Scrolling element screenshot (captures entire scrollable content)
+webshot https://docs.github.com --full-page -s ".sidebar" -o sidebar.png
+
+# Control scroll timing for slow-loading content  
+webshot https://example.com --full-page --scroll-delay 300 -o slow-load.png
+
+# Mobile full page with height limit
+webshot https://example.com -w 375 -h 812 --full-page --max-height 25000 -o mobile-full.png
 ```
 
 ### JavaScript Execution

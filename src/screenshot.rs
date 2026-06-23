@@ -1,6 +1,23 @@
 use crate::error::{Result, WebshotError};
 use std::path::Path;
 
+/// Scrolling screenshot mode
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ScrollMode {
+    /// Standard viewport-only screenshot
+    Viewport,
+    /// Capture full page by scrolling and stitching
+    FullPage,
+    /// Capture element and its full scrollable content
+    FullElement,
+}
+
+impl Default for ScrollMode {
+    fn default() -> Self {
+        Self::Viewport
+    }
+}
+
 /// Screenshot configuration options
 #[derive(Debug, Clone)]
 pub struct ScreenshotOptions {
@@ -24,6 +41,12 @@ pub struct ScreenshotOptions {
     pub wait: u64,
     /// Custom user agent
     pub user_agent: Option<String>,
+    /// Scrolling screenshot mode
+    pub scroll_mode: ScrollMode,
+    /// Maximum height for full page screenshots (safety limit)
+    pub max_height: Option<u32>,
+    /// Scroll delay between captures (milliseconds)
+    pub scroll_delay: u64,
 }
 
 impl Default for ScreenshotOptions {
@@ -39,6 +62,9 @@ impl Default for ScreenshotOptions {
             quality: None,
             wait: 0,
             user_agent: None,
+            scroll_mode: ScrollMode::default(),
+            max_height: Some(30000), // 30k pixels default max height
+            scroll_delay: 100,       // 100ms delay between scrolls
         }
     }
 }
@@ -104,6 +130,36 @@ impl ScreenshotOptions {
         self
     }
 
+    /// Enable full page scrolling screenshot
+    pub fn full_page(mut self) -> Self {
+        self.scroll_mode = ScrollMode::FullPage;
+        self
+    }
+
+    /// Enable full element scrolling screenshot
+    pub fn full_element(mut self) -> Self {
+        self.scroll_mode = ScrollMode::FullElement;
+        self
+    }
+
+    /// Set scroll mode
+    pub fn scroll_mode(mut self, mode: ScrollMode) -> Self {
+        self.scroll_mode = mode;
+        self
+    }
+
+    /// Set maximum height for full page screenshots
+    pub fn max_height(mut self, height: u32) -> Self {
+        self.max_height = Some(height);
+        self
+    }
+
+    /// Set scroll delay between captures
+    pub fn scroll_delay(mut self, delay: u64) -> Self {
+        self.scroll_delay = delay;
+        self
+    }
+
     /// Validate the options
     pub fn validate(&self) -> Result<()> {
         if self.width == 0 || self.height == 0 {
@@ -125,6 +181,27 @@ impl ScreenshotOptions {
         if self.timeout == 0 {
             return Err(WebshotError::config(
                 "Timeout must be greater than 0".to_string(),
+            ));
+        }
+
+        // Validate max height for full page screenshots
+        if let Some(max_height) = self.max_height {
+            if max_height == 0 {
+                return Err(WebshotError::config(
+                    "Max height must be greater than 0".to_string(),
+                ));
+            }
+            if max_height > 100000 {
+                return Err(WebshotError::config(
+                    "Max height should not exceed 100,000 pixels for safety".to_string(),
+                ));
+            }
+        }
+
+        // Validate scroll mode compatibility
+        if self.scroll_mode == ScrollMode::FullElement && self.selector.is_none() {
+            return Err(WebshotError::config(
+                "FullElement scroll mode requires a selector to be specified".to_string(),
             ));
         }
 
@@ -216,7 +293,10 @@ mod tests {
             .retina()
             .quality(90)
             .wait(5)
-            .user_agent("Custom Agent");
+            .user_agent("Custom Agent")
+            .full_page()
+            .max_height(50000)
+            .scroll_delay(200);
 
         assert_eq!(options.width, 1920);
         assert_eq!(options.height, 1080);
@@ -228,6 +308,9 @@ mod tests {
         assert_eq!(options.quality, Some(90));
         assert_eq!(options.wait, 5);
         assert_eq!(options.user_agent.as_deref(), Some("Custom Agent"));
+        assert_eq!(options.scroll_mode, ScrollMode::FullPage);
+        assert_eq!(options.max_height, Some(50000));
+        assert_eq!(options.scroll_delay, 200);
     }
 
     #[test]
@@ -306,5 +389,40 @@ mod tests {
         assert!(!ImageFormat::Jpeg.supports_transparency());
         assert!(!ImageFormat::Pdf.supports_transparency());
         assert!(ImageFormat::WebP.supports_transparency());
+    }
+
+    #[test]
+    fn test_scroll_mode_defaults() {
+        let options = ScreenshotOptions::new();
+        assert_eq!(options.scroll_mode, ScrollMode::Viewport);
+        assert_eq!(options.max_height, Some(30000));
+        assert_eq!(options.scroll_delay, 100);
+    }
+
+    #[test]
+    fn test_scroll_mode_builder() {
+        let full_page_options = ScreenshotOptions::new().full_page();
+        assert_eq!(full_page_options.scroll_mode, ScrollMode::FullPage);
+
+        let full_element_options = ScreenshotOptions::new().selector(".content").full_element();
+        assert_eq!(full_element_options.scroll_mode, ScrollMode::FullElement);
+    }
+
+    #[test]
+    fn test_scroll_validation() {
+        // Full element mode requires a selector
+        let mut options = ScreenshotOptions::new().full_element();
+        assert!(options.validate().is_err());
+
+        // With selector it should work
+        options = options.selector(".content");
+        assert!(options.validate().is_ok());
+
+        // Max height validation
+        options = ScreenshotOptions::new().max_height(0);
+        assert!(options.validate().is_err());
+
+        options = ScreenshotOptions::new().max_height(200000); // Too large
+        assert!(options.validate().is_err());
     }
 }

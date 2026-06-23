@@ -1,4 +1,5 @@
 use crate::error::{Result, WebshotError};
+use crate::screenshot::ScrollMode;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -76,6 +77,14 @@ pub struct ScreenshotConfig {
     pub auth: Option<AuthConfig>,
     /// Comparison configuration for visual regression testing
     pub comparison: Option<ComparisonConfig>,
+    /// Scrolling screenshot mode
+    #[serde(default)]
+    pub scroll_mode: ScrollMode,
+    /// Maximum height for full page screenshots (safety limit)
+    pub max_height: Option<u32>,
+    /// Scroll delay between captures (milliseconds)
+    #[serde(default = "default_scroll_delay")]
+    pub scroll_delay: u64,
 }
 
 /// Cookie configuration
@@ -150,6 +159,14 @@ pub struct DefaultConfig {
     /// Global cookies
     #[serde(default)]
     pub cookies: Vec<CookieConfig>,
+    /// Default scrolling screenshot mode
+    #[serde(default)]
+    pub scroll_mode: ScrollMode,
+    /// Default maximum height for full page screenshots
+    pub max_height: Option<u32>,
+    /// Default scroll delay between captures (milliseconds)
+    #[serde(default = "default_scroll_delay")]
+    pub scroll_delay: u64,
 }
 
 impl Default for DefaultConfig {
@@ -165,6 +182,9 @@ impl Default for DefaultConfig {
             quality: None,
             headers: std::collections::HashMap::new(),
             cookies: Vec::new(),
+            scroll_mode: ScrollMode::default(),
+            max_height: Some(30000),
+            scroll_delay: default_scroll_delay(),
         }
     }
 }
@@ -206,6 +226,21 @@ impl Config {
             // Merge cookies
             if screenshot.cookies.is_empty() && !config.defaults.cookies.is_empty() {
                 screenshot.cookies = config.defaults.cookies.clone();
+            }
+
+            // Merge scrolling options
+            if screenshot.scroll_mode == ScrollMode::default()
+                && config.defaults.scroll_mode != ScrollMode::default()
+            {
+                screenshot.scroll_mode = config.defaults.scroll_mode;
+            }
+            if screenshot.max_height.is_none() && config.defaults.max_height.is_some() {
+                screenshot.max_height = config.defaults.max_height;
+            }
+            if screenshot.scroll_delay == default_scroll_delay()
+                && config.defaults.scroll_delay != default_scroll_delay()
+            {
+                screenshot.scroll_delay = config.defaults.scroll_delay;
             }
 
             // Resolve output path relative to output_dir if set
@@ -265,6 +300,14 @@ impl Config {
                 )));
             }
 
+            // FullElement scrolling requires a selector to target
+            if screenshot.scroll_mode == ScrollMode::FullElement && screenshot.selector.is_none() {
+                return Err(WebshotError::config(format!(
+                    "screenshot {}: FullElement scroll mode requires a selector",
+                    i
+                )));
+            }
+
             let extension = screenshot
                 .output
                 .extension()
@@ -315,6 +358,10 @@ fn default_diff_color() -> String {
     "255,0,0".to_string()
 }
 
+fn default_scroll_delay() -> u64 {
+    100
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +386,9 @@ mod tests {
             cookies: Vec::new(),
             auth: None,
             comparison: None,
+            scroll_mode: ScrollMode::default(),
+            max_height: None,
+            scroll_delay: default_scroll_delay(),
         }
     }
 
