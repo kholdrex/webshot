@@ -1,0 +1,79 @@
+# Example configuration for scrolling screenshots
+# This demonstrates the new scrolling features in webshot
+
+# Global defaults applied to all screenshots
+defaults:
+  width: 1280
+  height: 800
+  timeout: 30
+  output_dir: "screenshots"
+  # Scrolling defaults
+  scroll_mode: "Viewport"  # Options: Viewport, FullPage, FullElement
+  max_height: 50000       # Maximum height in pixels for full page screenshots
+  scroll_delay: 150       # Milliseconds between scroll captures
+
+# List of screenshots demonstrating scrolling features
+screenshots:
+  # Standard viewport screenshot (default)
+  - url: "https://example.com"
+    output: "viewport-example.png"
+    scroll_mode: "Viewport"
+
+  # Full page scrolling screenshot
+  - url: "https://github.com/features"
+    output: "github-features-fullpage.png"
+    scroll_mode: "FullPage"
+    max_height: 30000
+
+  # Full element scrolling screenshot
+  - url: "https://github.com"
+    output: "github-main-content.png"
+    selector: "main"
+    scroll_mode: "FullElement"
+    max_height: 20000
+    scroll_delay: 200
+
+  # Long article with full page capture
+  - url: "https://en.wikipedia.org/wiki/Web_scraping"
+    output: "wikipedia-article.png"
+    scroll_mode: "FullPage"
+    width: 1920
+    height: 1080
+    max_height: 40000
+
+  # Scrollable sidebar element
+  - url: "https://docs.github.com"
+    output: "github-docs-nav.png" 
+    selector: ".sidebar"
+    scroll_mode: "FullElement"
+    max_height: 15000
+    scroll_delay: 100
+
+  # Mobile viewport with full page
+  - url: "https://example.com"
+    output: "mobile-fullpage.png"
+    width: 375
+    height: 812
+    scroll_mode: "FullPage"
+    max_height: 25000
+
+  # Fast scrolling for simple pages
+  - url: "https://httpbin.org/html"
+    output: "httpbin-fast-scroll.png"
+    scroll_mode: "FullPage"
+    scroll_delay: 50
+
+  # Very tall page with height limit
+  - url: "https://news.ycombinator.com"
+    output: "hackernews-limited.png"
+    scroll_mode: "FullPage"
+    max_height: 10000  # Limit capture to first 10k pixels
+
+  # Article content only
+  - url: "https://en.wikipedia.org/wiki/Screenshot"
+    output: "wikipedia-content-only.png"
+    selector: "#content"
+    scroll_mode: "FullElement"
+    max_height: 30000
+
+

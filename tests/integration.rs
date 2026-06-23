@@ -1034,6 +1034,192 @@ async fn test_compare_invalid_files() {
         .stderr(predicate::str::contains("Failed to load second image"));
 }
 
+// Scrolling screenshot tests
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
+async fn test_full_page_screenshot() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("fullpage.png");
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg(TEST_URL)
+        .arg("-o")
+        .arg(&output_path)
+        .arg("--full-page")
+        .arg("--max-height")
+        .arg("5000"); // Small limit for test
+
+    cmd.assert().success();
+    assert!(output_path.exists());
+
+    // Check that the file is not empty
+    let metadata = fs::metadata(&output_path).unwrap();
+    assert!(metadata.len() > 0);
+}
+
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
+async fn test_full_page_with_config() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create a config with scrolling options
+    let config_content = format!(
+        r#"
+defaults:
+  scroll_mode: "FullPage"
+  max_height: 3000
+  scroll_delay: 50
+
+screenshots:
+  - url: "{}"
+    output: "fullpage-config.png"
+    width: 800
+    height: 600
+"#,
+        TEST_URL
+    );
+
+    let config_path = temp_dir.path().join("scroll-config.yaml");
+    fs::write(&config_path, config_content).unwrap();
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("multi")
+        .arg(&config_path)
+        .arg("-o")
+        .arg(temp_dir.path());
+
+    cmd.assert().success();
+    assert!(temp_dir.path().join("fullpage-config.png").exists());
+}
+
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
+async fn test_full_element_screenshot() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("element-full.png");
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg(TEST_URL)
+        .arg("-o")
+        .arg(&output_path)
+        .arg("-s")
+        .arg("body") // Select body element
+        .arg("--full-page") // This should automatically use FullElement mode
+        .arg("--max-height")
+        .arg("3000");
+
+    cmd.assert().success();
+    assert!(output_path.exists());
+}
+
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
+async fn test_scroll_delay_option() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("scroll-delay.png");
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg(TEST_URL)
+        .arg("-o")
+        .arg(&output_path)
+        .arg("--full-page")
+        .arg("--scroll-delay")
+        .arg("200")
+        .arg("--max-height")
+        .arg("2000");
+
+    cmd.assert().success();
+    assert!(output_path.exists());
+}
+
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
+async fn test_viewport_vs_fullpage_difference() {
+    let temp_dir = TempDir::new().unwrap();
+    let viewport_path = temp_dir.path().join("viewport.png");
+    let fullpage_path = temp_dir.path().join("fullpage.png");
+
+    // Take viewport screenshot
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg(TEST_URL)
+        .arg("-o")
+        .arg(&viewport_path)
+        .arg("-w")
+        .arg("800")
+        .arg("-H")
+        .arg("600");
+    cmd.assert().success();
+
+    // Take full page screenshot
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg(TEST_URL)
+        .arg("-o")
+        .arg(&fullpage_path)
+        .arg("-w")
+        .arg("800")
+        .arg("-H")
+        .arg("600")
+        .arg("--full-page")
+        .arg("--max-height")
+        .arg("3000");
+    cmd.assert().success();
+
+    // Both should exist
+    assert!(viewport_path.exists());
+    assert!(fullpage_path.exists());
+
+    // Full page screenshot should typically be larger (unless page is very short)
+    let viewport_size = fs::metadata(&viewport_path).unwrap().len();
+    let fullpage_size = fs::metadata(&fullpage_path).unwrap().len();
+
+    // Both should be non-empty
+    assert!(viewport_size > 0);
+    assert!(fullpage_size > 0);
+}
+
+#[tokio::test]
+#[ignore = "requires Chrome/Chromium and network access"]
+async fn test_max_height_limit() {
+    let temp_dir = TempDir::new().unwrap();
+    let output_path = temp_dir.path().join("height-limited.png");
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg(TEST_URL)
+        .arg("-o")
+        .arg(&output_path)
+        .arg("--full-page")
+        .arg("--max-height")
+        .arg("1000"); // Very small limit
+
+    cmd.assert().success();
+    assert!(output_path.exists());
+}
+
+#[tokio::test]
+async fn test_scroll_mode_config_validation() {
+    let temp_dir = TempDir::new().unwrap();
+
+    // Create config with invalid scroll mode for FullElement (no selector)
+    let invalid_config = r#"
+screenshots:
+  - url: "https://httpbin.org/html"
+    output: "invalid.png"
+    scroll_mode: "FullElement"
+"#;
+
+    let config_path = temp_dir.path().join("invalid-scroll-config.yaml");
+    fs::write(&config_path, invalid_config).unwrap();
+
+    let mut cmd = Command::cargo_bin("webshot").unwrap();
+    cmd.arg("multi").arg(&config_path);
+
+    // Should fail validation before browser startup because FullElement
+    // scroll mode requires a selector.
+    cmd.assert().failure().stderr(predicate::str::contains(
+        "FullElement scroll mode requires a selector",
+    ));
+}
+
 #[tokio::test]
 async fn test_compare_invalid_algorithm() {
     let temp_dir = TempDir::new().unwrap();

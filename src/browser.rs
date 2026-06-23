@@ -1,15 +1,25 @@
 use crate::config::{validate_navigation_url, Config, ScreenshotConfig};
 use crate::error::{Result, WebshotError};
 use crate::output::OutputHandler;
-use crate::screenshot::{ImageFormat, ScreenshotOptions};
+use crate::screenshot::{ImageFormat, ScreenshotOptions, ScrollMode};
 use headless_chrome::protocol::cdp::Page;
 use headless_chrome::types::PrintToPdfOptions;
 use headless_chrome::{Browser as ChromeBrowser, LaunchOptions, Tab};
+use image::{DynamicImage, ImageBuffer, Rgba};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, info, warn};
+
+/// Page metrics for determining scroll requirements
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct PageMetrics {
+    content_height: f64,
+    viewport_height: f64,
+    viewport_width: f64,
+}
 
 /// Browser automation wrapper
 pub struct Browser {
@@ -396,20 +406,349 @@ impl Browser {
         options: &ScreenshotOptions,
         format: ImageFormat,
     ) -> Result<()> {
-        let screenshot_data = if let Some(selector) = &options.selector {
-            info!("Taking element screenshot: {}", selector);
-            let element = tab
-                .find_element(selector)
-                .map_err(|_e| WebshotError::element_not_found(selector.clone()))?;
-            element
-                .capture_screenshot(Page::CaptureScreenshotFormatOption::Png)
-                .map_err(|e| WebshotError::screenshot(e.to_string()))?
-        } else {
-            info!("Taking full page screenshot");
-            tab.capture_screenshot(Page::CaptureScreenshotFormatOption::Png, None, None, true)
-                .map_err(|e| WebshotError::screenshot(e.to_string()))?
+        let screenshot_data = match options.scroll_mode {
+            ScrollMode::Viewport => {
+                if let Some(selector) = &options.selector {
+                    info!("Taking element screenshot: {}", selector);
+                    let element =
+                        tab.find_element(selector)
+                            .map_err(|_e| WebshotError::ElementNotFound {
+                                selector: selector.clone(),
+                            })?;
+                    element
+                        .capture_screenshot(Page::CaptureScreenshotFormatOption::Png)
+                        .map_err(|e| WebshotError::screenshot(e.to_string()))?
+                } else {
+                    info!("Taking viewport screenshot");
+                    tab.capture_screenshot(
+                        Page::CaptureScreenshotFormatOption::Png,
+                        None,
+                        None,
+                        true, // from_surface: required for reliable headless capture
+                    )
+                    .map_err(|e| WebshotError::screenshot(e.to_string()))?
+                }
+            }
+            ScrollMode::FullPage => {
+                info!("Taking full page scrolling screenshot");
+                self.capture_full_page_screenshot(tab, options).await?
+            }
+            ScrollMode::FullElement => {
+                if let Some(selector) = &options.selector {
+                    info!("Taking full element scrolling screenshot: {}", selector);
+                    self.capture_full_element_screenshot(tab, selector, options)
+                        .await?
+                } else {
+                    return Err(WebshotError::config(
+                        "FullElement scroll mode requires a selector".to_string(),
+                    ));
+                }
+            }
         };
 
+        self.save_screenshot_data(&screenshot_data, &output_path, options, format)
+            .await
+    }
+
+    async fn capture_full_page_screenshot(
+        &self,
+        tab: &Tab,
+        options: &ScreenshotOptions,
+    ) -> Result<Vec<u8>> {
+        // Get page dimensions
+        let page_metrics = self.get_page_metrics(tab).await?;
+        let content_height = page_metrics.content_height as u32;
+        let viewport_height = options.height;
+
+        // Apply max height limit
+        let effective_height = if let Some(max_height) = options.max_height {
+            content_height.min(max_height)
+        } else {
+            content_height
+        };
+
+        info!(
+            "Page content height: {}px, capturing up to: {}px",
+            content_height, effective_height
+        );
+
+        if effective_height <= viewport_height {
+            // Page fits in viewport, take single screenshot
+            return tab
+                .capture_screenshot(Page::CaptureScreenshotFormatOption::Png, None, None, true)
+                .map_err(|e| WebshotError::screenshot(e.to_string()));
+        }
+
+        // Calculate number of screenshots needed
+        let num_screenshots = effective_height.div_ceil(viewport_height);
+        let mut screenshots = Vec::new();
+
+        // Reset scroll position
+        tab.evaluate("window.scrollTo(0, 0)", true)
+            .map_err(|e| WebshotError::javascript(e.to_string()))?;
+
+        sleep(Duration::from_millis(options.scroll_delay)).await;
+
+        for i in 0..num_screenshots {
+            let scroll_y = i * viewport_height;
+
+            // Scroll to position
+            if i > 0 {
+                tab.evaluate(&format!("window.scrollTo(0, {})", scroll_y), true)
+                    .map_err(|e| WebshotError::javascript(e.to_string()))?;
+
+                sleep(Duration::from_millis(options.scroll_delay)).await;
+            }
+
+            info!(
+                "Capturing screenshot {}/{} at scroll position {}px",
+                i + 1,
+                num_screenshots,
+                scroll_y
+            );
+
+            let screenshot_data = tab
+                .capture_screenshot(
+                    Page::CaptureScreenshotFormatOption::Png,
+                    None,
+                    None,
+                    true, // from_surface: required for reliable headless capture
+                )
+                .map_err(|e| WebshotError::screenshot(e.to_string()))?;
+
+            let img = image::load_from_memory(&screenshot_data)?;
+            screenshots.push(img);
+        }
+
+        // Stitch screenshots together
+        let stitched_image =
+            self.stitch_screenshots(screenshots, options.width, effective_height)?;
+
+        // Convert back to PNG bytes
+        let mut png_data = Vec::new();
+        stitched_image.write_to(
+            &mut std::io::Cursor::new(&mut png_data),
+            image::ImageFormat::Png,
+        )?;
+
+        Ok(png_data)
+    }
+
+    async fn capture_full_element_screenshot(
+        &self,
+        tab: &Tab,
+        selector: &str,
+        options: &ScreenshotOptions,
+    ) -> Result<Vec<u8>> {
+        // Find the element
+        let element = tab
+            .find_element(selector)
+            .map_err(|_e| WebshotError::ElementNotFound {
+                selector: selector.to_string(),
+            })?;
+
+        // Get element dimensions and position
+        let element_info = tab
+            .evaluate(
+                &format!(
+                    r#"
+            (() => {{
+                const el = document.querySelector('{}');
+                if (!el) return "null";
+                const rect = el.getBoundingClientRect();
+                return JSON.stringify({{
+                    x: rect.left + window.scrollX,
+                    y: rect.top + window.scrollY,
+                    width: el.scrollWidth || rect.width,
+                    height: el.scrollHeight || rect.height,
+                    viewportHeight: window.innerHeight
+                }});
+            }})()
+            "#,
+                    selector.replace('\'', "\\'")
+                ),
+                true,
+            )
+            .map_err(|e| WebshotError::javascript(e.to_string()))?;
+
+        let element_json = element_info
+            .value
+            .as_ref()
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                WebshotError::javascript("element info evaluation returned no value".to_string())
+            })?;
+        let element_data: serde_json::Value = serde_json::from_str(element_json).map_err(|e| {
+            WebshotError::javascript(format!("Failed to parse element info: {}", e))
+        })?;
+
+        if element_data.is_null() {
+            return Err(WebshotError::ElementNotFound {
+                selector: selector.to_string(),
+            });
+        }
+
+        let element_height = element_data["height"].as_f64().unwrap() as u32;
+        let element_y = element_data["y"].as_f64().unwrap() as u32;
+        let viewport_height = options.height;
+
+        // Apply max height limit
+        let effective_height = if let Some(max_height) = options.max_height {
+            element_height.min(max_height)
+        } else {
+            element_height
+        };
+
+        if effective_height <= viewport_height {
+            // Element fits in viewport, use regular element screenshot
+            return element
+                .capture_screenshot(Page::CaptureScreenshotFormatOption::Png)
+                .map_err(|e| WebshotError::screenshot(e.to_string()));
+        }
+
+        // Scroll to element first
+        tab.evaluate(&format!("window.scrollTo(0, {})", element_y), true)
+            .map_err(|e| WebshotError::javascript(e.to_string()))?;
+
+        sleep(Duration::from_millis(options.scroll_delay)).await;
+
+        // Calculate number of screenshots needed for the element
+        let num_screenshots = effective_height.div_ceil(viewport_height);
+        let mut screenshots = Vec::new();
+
+        for i in 0..num_screenshots {
+            let scroll_y = element_y + (i * viewport_height);
+
+            if i > 0 {
+                tab.evaluate(&format!("window.scrollTo(0, {})", scroll_y), true)
+                    .map_err(|e| WebshotError::javascript(e.to_string()))?;
+
+                sleep(Duration::from_millis(options.scroll_delay)).await;
+            }
+
+            info!(
+                "Capturing element screenshot {}/{} at scroll position {}px",
+                i + 1,
+                num_screenshots,
+                scroll_y
+            );
+
+            let screenshot_data = tab
+                .capture_screenshot(Page::CaptureScreenshotFormatOption::Png, None, None, true)
+                .map_err(|e| WebshotError::screenshot(e.to_string()))?;
+
+            let img = image::load_from_memory(&screenshot_data)?;
+            screenshots.push(img);
+        }
+
+        // Stitch screenshots together
+        let element_width = element_data["width"].as_f64().unwrap() as u32;
+        let stitched_image =
+            self.stitch_screenshots(screenshots, element_width, effective_height)?;
+
+        // Convert back to PNG bytes
+        let mut png_data = Vec::new();
+        stitched_image.write_to(
+            &mut std::io::Cursor::new(&mut png_data),
+            image::ImageFormat::Png,
+        )?;
+
+        Ok(png_data)
+    }
+
+    fn stitch_screenshots(
+        &self,
+        screenshots: Vec<DynamicImage>,
+        width: u32,
+        total_height: u32,
+    ) -> Result<DynamicImage> {
+        if screenshots.is_empty() {
+            return Err(WebshotError::screenshot(
+                "No screenshots to stitch".to_string(),
+            ));
+        }
+
+        let mut stitched = ImageBuffer::<Rgba<u8>, Vec<u8>>::new(width, total_height);
+        let mut current_y = 0u32;
+
+        for (i, screenshot) in screenshots.iter().enumerate() {
+            let screenshot_rgba = screenshot.to_rgba8();
+            let screenshot_height = screenshot_rgba.height();
+
+            // Calculate how much of this screenshot to use
+            let remaining_height = total_height - current_y;
+            let copy_height = screenshot_height.min(remaining_height);
+
+            // Copy pixels from this screenshot
+            for y in 0..copy_height {
+                for x in 0..width {
+                    if let Some(pixel) = screenshot_rgba.get_pixel_checked(x, y) {
+                        stitched.put_pixel(x, current_y + y, *pixel);
+                    }
+                }
+            }
+
+            current_y += copy_height;
+            info!(
+                "Stitched screenshot {}/{}, current height: {}px",
+                i + 1,
+                screenshots.len(),
+                current_y
+            );
+
+            if current_y >= total_height {
+                break;
+            }
+        }
+
+        Ok(DynamicImage::ImageRgba8(stitched))
+    }
+
+    async fn get_page_metrics(&self, tab: &Tab) -> Result<PageMetrics> {
+        let metrics_result = tab
+            .evaluate(
+                r#"
+            (() => {
+                const body = document.body;
+                const html = document.documentElement;
+
+                const height = Math.max(
+                    body.scrollHeight, body.offsetHeight,
+                    html.clientHeight, html.scrollHeight, html.offsetHeight
+                );
+
+                return JSON.stringify({
+                    content_height: height,
+                    viewport_height: window.innerHeight,
+                    viewport_width: window.innerWidth
+                });
+            })()
+            "#,
+                true,
+            )
+            .map_err(|e| WebshotError::javascript(e.to_string()))?;
+
+        let metrics_json = metrics_result
+            .value
+            .as_ref()
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| {
+                WebshotError::javascript("page metrics evaluation returned no value".to_string())
+            })?;
+        let metrics: PageMetrics = serde_json::from_str(metrics_json).map_err(|e| {
+            WebshotError::javascript(format!("Failed to parse page metrics: {}", e))
+        })?;
+
+        Ok(metrics)
+    }
+
+    async fn save_screenshot_data<P: AsRef<Path>>(
+        &self,
+        screenshot_data: &[u8],
+        output_path: P,
+        options: &ScreenshotOptions,
+        format: ImageFormat,
+    ) -> Result<()> {
         OutputHandler::ensure_output_dir(&output_path)?;
 
         match format {
@@ -418,7 +757,7 @@ impl Browser {
             }
             ImageFormat::Jpeg => {
                 // Convert PNG to JPEG
-                let img = image::load_from_memory(&screenshot_data)?;
+                let img = image::load_from_memory(screenshot_data)?;
                 let mut output = std::fs::File::create(&output_path)?;
                 let quality = options.quality.unwrap_or(90);
 
@@ -428,7 +767,7 @@ impl Browser {
             }
             ImageFormat::WebP => {
                 // Convert PNG to WebP
-                let img = image::load_from_memory(&screenshot_data)?;
+                let img = image::load_from_memory(screenshot_data)?;
                 let mut output = std::fs::File::create(&output_path)?;
 
                 let encoder = image::codecs::webp::WebPEncoder::new_lossless(&mut output);
@@ -475,6 +814,9 @@ impl Browser {
             quality: config.quality,
             wait: config.wait,
             user_agent: config.user_agent.clone(),
+            scroll_mode: config.scroll_mode,
+            max_height: config.max_height,
+            scroll_delay: config.scroll_delay,
         };
 
         self.setup_tab(&tab, &options).await?;

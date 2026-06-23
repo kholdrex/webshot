@@ -82,6 +82,18 @@ struct Cli {
     /// Additional Chrome flags
     #[arg(long, action = clap::ArgAction::Append)]
     chrome_flag: Vec<String>,
+
+    /// Enable full page scrolling screenshot
+    #[arg(long)]
+    full_page: bool,
+
+    /// Maximum height for full page screenshots (pixels)
+    #[arg(long)]
+    max_height: Option<u32>,
+
+    /// Scroll delay between captures (milliseconds)
+    #[arg(long, default_value = "100")]
+    scroll_delay: u64,
 }
 
 #[derive(Subcommand)]
@@ -121,6 +133,15 @@ enum Commands {
         /// Wait time before screenshot
         #[arg(long, default_value = "0")]
         wait: u64,
+        /// Enable full page scrolling screenshot
+        #[arg(long)]
+        full_page: bool,
+        /// Maximum height for full page screenshots (pixels)
+        #[arg(long)]
+        max_height: Option<u32>,
+        /// Scroll delay between captures (milliseconds)
+        #[arg(long, default_value = "100")]
+        scroll_delay: u64,
     },
     /// Generate PDF from webpage
     Pdf {
@@ -243,6 +264,9 @@ async fn main() -> Result<()> {
             retina,
             quality,
             wait,
+            full_page,
+            max_height,
+            scroll_delay,
         }) => {
             take_screenshot(
                 &url,
@@ -256,6 +280,9 @@ async fn main() -> Result<()> {
                 retina,
                 quality,
                 wait,
+                full_page,
+                max_height,
+                scroll_delay,
                 chrome_path,
                 chrome_flags,
                 no_javascript,
@@ -369,6 +396,9 @@ async fn main() -> Result<()> {
                     cli.retina,
                     cli.quality,
                     cli.wait,
+                    cli.full_page,
+                    cli.max_height,
+                    cli.scroll_delay,
                     chrome_path,
                     chrome_flags,
                     no_javascript,
@@ -414,6 +444,9 @@ async fn take_screenshot(
     retina: bool,
     quality: Option<u8>,
     wait: u64,
+    full_page: bool,
+    max_height: Option<u32>,
+    scroll_delay: u64,
     chrome_path: Option<PathBuf>,
     chrome_flags: Vec<String>,
     no_javascript: bool,
@@ -423,6 +456,16 @@ async fn take_screenshot(
     info!("Taking screenshot of: {}", url);
 
     let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
+
+    let scroll_mode = if full_page {
+        if selector.is_some() {
+            webshot::ScrollMode::FullElement
+        } else {
+            webshot::ScrollMode::FullPage
+        }
+    } else {
+        webshot::ScrollMode::Viewport
+    };
 
     let options = ScreenshotOptions {
         width,
@@ -435,6 +478,9 @@ async fn take_screenshot(
         quality,
         wait,
         user_agent,
+        scroll_mode,
+        max_height,
+        scroll_delay,
     };
 
     let output_path = output.clone().unwrap_or_else(|| {
@@ -525,6 +571,7 @@ async fn process_config(
     info!("Processing config file: {}", config_file.display());
 
     let config = Config::from_file(config_file)?;
+    config.validate()?;
     let browser = Browser::new(chrome_path, chrome_flags, !no_javascript).await?;
 
     browser
